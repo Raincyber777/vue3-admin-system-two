@@ -14,12 +14,6 @@
 
     <!-- 筛选 -->
     <div class="toolbar-card">
-      <el-radio-group v-model="filterClass" size="small" style="margin-left:12px">
-        <el-radio-button value="all">全部班级</el-radio-button>
-        <el-radio-button value="1班">1班</el-radio-button>
-        <el-radio-button value="2班">2班</el-radio-button>
-        <el-radio-button value="3班">3班</el-radio-button>
-      </el-radio-group>
       <el-radio-group v-model="filterStatus" size="small" style="margin-left:12px">
         <el-radio-button value="all">全部状态</el-radio-button>
         <el-radio-button value="active">启用</el-radio-button>
@@ -40,11 +34,6 @@
         <el-table-column type="index" label="序号" width="65" />
         <el-table-column prop="name" label="姓名" min-width="100" />
         <el-table-column prop="email" label="邮箱" min-width="180" />
-        <el-table-column label="角色" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.role==='admin'?'':'success'" size="small">{{ row.role==='admin'?'管理员':'用户' }}</el-tag>
-          </template>
-        </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <span :class="row.status === 'active' ? 'status-active' : 'status-disabled'">
@@ -60,17 +49,15 @@
         </el-table-column>
         <el-table-column label="操作" width="180">
           <template #default="{ row }">
-            <template v-if="row.role !== 'admin'">
-              <el-button v-if="row.status === 'disabled'" type="success" link size="small" @click="handleEnable(row)">
-                <el-icon><CircleCheck /></el-icon> 启用
-              </el-button>
-              <el-button v-if="row.status === 'active'" type="warning" link size="small" @click="handleDisable(row)">
-                <el-icon><CircleClose /></el-icon> 禁用
-              </el-button>
-              <el-button type="danger" link size="small" @click="handleDelete(row)">
-                <el-icon><Delete /></el-icon> 删除
-              </el-button>
-            </template>
+            <el-button v-if="row.status === 'disabled'" type="success" link size="small" @click="handleEnable(row)">
+              <el-icon><CircleCheck /></el-icon> 启用
+            </el-button>
+            <el-button v-if="row.status === 'active'" type="warning" link size="small" @click="handleDisable(row)">
+              <el-icon><CircleClose /></el-icon> 禁用
+            </el-button>
+            <el-button type="danger" link size="small" @click="handleDelete(row)">
+              <el-icon><Delete /></el-icon> 删除
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -100,8 +87,6 @@
         <div class="detail-row"><span class="dl">邮箱</span><span class="dv">{{ detailUser.email }}</span></div>
         <div class="detail-row"><span class="dl">学号</span><span class="dv">{{ detailUser.studentNo || '-' }}</span></div>
         <div class="detail-row"><span class="dl">电话号码</span><span class="dv">{{ detailUser.phone || '-' }}</span></div>
-        <div class="detail-row"><span class="dl">班级</span><span class="dv">{{ detailUser.className || '-' }}</span></div>
-        <div class="detail-row"><span class="dl">角色</span><span class="dv">{{ detailUser.role==='admin'?'管理员':'用户' }}</span></div>
         <div class="detail-row"><span class="dl">注册时间</span><span class="dv">{{ detailUser.createdAt || '-' }}</span></div>
       </div>
       <template #footer><el-button @click="detailVisible=false">关闭</el-button></template>
@@ -128,25 +113,8 @@
         <el-form-item label="密码" required>
           <el-input v-model="createForm.password" placeholder="请输入初始密码" maxlength="30" show-password />
         </el-form-item>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="班级" required>
-              <el-select v-model="createForm.className" style="width:100%">
-                <el-option label="1班" value="1班" />
-                <el-option label="2班" value="2班" />
-                <el-option label="3班" value="3班" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
         <el-form-item label="电话号码">
           <el-input v-model="createForm.phone" placeholder="请输入手机号码" maxlength="11" />
-        </el-form-item>
-        <el-form-item label="角色">
-          <el-select v-model="createForm.role" style="width:100%">
-            <el-option label="普通用户" value="normal" />
-            <el-option label="管理员" value="admin" />
-          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -174,7 +142,6 @@ import PageHeaderCard from '@/components/PageHeaderCard.vue'
 const store = useAccountStore()
 
 const searchKeyword = ref('')
-const filterClass = ref('all')
 const filterStatus = ref('all')
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -185,9 +152,8 @@ const filteredList = computed(() => {
   let list = [...store.users]
   if (searchKeyword.value.trim()) {
     const kw = searchKeyword.value.trim().toLowerCase()
-    list = list.filter(u => u.name.toLowerCase().includes(kw) || u.email.toLowerCase().includes(kw))
+    list = list.filter(u => (u.name || '').toLowerCase().includes(kw) || (u.email || '').toLowerCase().includes(kw))
   }
-  if (filterClass.value !== 'all') list = list.filter(u => u.className === filterClass.value)
   if (filterStatus.value !== 'all') list = list.filter(u => u.status === filterStatus.value)
   return list
 })
@@ -213,7 +179,7 @@ const handleRefresh = async () => {
 }
 
 const resetFilter = () => {
-  searchKeyword.value = ''; filterClass.value = 'all'; filterStatus.value = 'all'; currentPage.value = 1
+  searchKeyword.value = ''; filterStatus.value = 'all'; currentPage.value = 1
 }
 
 const handleEnable = async (row: User) => {
@@ -306,8 +272,6 @@ const createForm = reactive({
   studentNo: '',
   password: '',
   phone: '',
-  className: '1班',
-  role: 'normal' as 'admin' | 'normal',
 })
 
 const resetCreateForm = () => {
@@ -316,8 +280,6 @@ const resetCreateForm = () => {
   createForm.studentNo = ''
   createForm.password = ''
   createForm.phone = ''
-  createForm.className = '1班'
-  createForm.role = 'normal'
 }
 
 const openCreateDialog = () => {
@@ -336,17 +298,19 @@ const handleCreateUser = async () => {
       username: createForm.email,
       name: createForm.name,
       email: createForm.email,
-      role: createForm.role,
-      status: 'active',
+      role: 'normal',
+      status: 'active' as const,
       studentNo: createForm.studentNo,
       password: createForm.password,
       phone: createForm.phone,
-      className: createForm.className,
+      department: 'software',
+      className: '',
     })
     createVisible.value = false
     ElMessage.success('账号创建成功！')
-  } catch {
-    ElMessage.error('创建失败，请重试')
+  } catch (err: any) {
+    const msg = err?.message || err?.response?.data?.detail || '创建失败，请重试'
+    ElMessage.error(typeof msg === 'string' ? msg : '创建失败，请重试')
   } finally {
     createLoading.value = false
   }

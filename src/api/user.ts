@@ -85,7 +85,8 @@ export const getUserDetail = async (userId: number): Promise<ApiUserDetail | nul
  * @param status 'active' | 'disabled'
  */
 export const updateUserStatus = async (userId: number, status: 'active' | 'disabled') => {
-  return request.put(`/v1/admin/user/status/${userId}`, { status })
+  // 后端期望数字状态: 1=启用, 0=禁用
+  return request.put(`/v1/admin/user/status/${userId}`, { status: status === 'active' ? 1 : 0 })
 }
 
 /**
@@ -104,17 +105,17 @@ export const batchDeleteUsersApi = async (userIds: number[]) => {
   return request.delete('/v1/admin/user/delete', { data: { userIds } })
 }
 
-/** 创建用户请求体 */
+/** 创建用户请求体（与后端实际接受的字段一致，驼峰命名） */
 export interface CreateUserParams {
-  username?: string
+  username: string
   realName: string
-  email: string
-  password: string
-  role?: 'admin' | 'normal'
-  studentNo?: string
   phone?: string
-  department: 'software' | 'ai'
-  className?: string
+  email: string
+  role?: string
+  grade?: string
+  major?: string
+  college?: string
+  studentId?: string
 }
 
 /**

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
-import { getUserList, getUserDetail, updateUserStatus, createUser, deleteUserApi, batchDeleteUsersApi, type ApiUserDetail } from '@/api/user'
+import { getUserList, getUserDetail, updateUserStatus, createUser, deleteUserApi, batchDeleteUsersApi } from '@/api/user'
 
 export interface User {
   id: number
@@ -29,8 +29,26 @@ const defaultUsers: User[] = [
 ]
 
 export const useAccountStore = defineStore('account', () => {
+  // 规范化用户数据，防止旧数据缺少字段导致 undefined 报错
+  const normalizeUser = (u: any): User => ({
+    id: u.id ?? 0,
+    username: u.username || '',
+    name: u.name || u.real_name || u.realName || '',
+    email: u.email || '',
+    role: u.role === 'admin' ? 'admin' : 'normal',
+    status: u.status === 'disabled' ? 'disabled' : 'active',
+    studentNo: u.studentNo || u.student_no || u.studentId || u.student_id || '',
+    password: u.password || '',
+    phone: u.phone || '',
+    department: u.department === 'ai' ? 'ai' : 'software',
+    className: u.className || u.class_name || u.class || '',
+    createdAt: u.createdAt || u.createTime || u.created_at || u.create_time || '',
+    updatedAt: u.updatedAt || u.updateTime || u.updated_at || u.update_time || '',
+  })
+
   const storedUsers = localStorage.getItem('adminUsers')
-  const storedUsersArray = storedUsers ? JSON.parse(storedUsers) : defaultUsers
+  const rawUsers: any[] = storedUsers ? JSON.parse(storedUsers) : defaultUsers
+  const storedUsersArray: User[] = rawUsers.map(normalizeUser)
   storedUsersArray.sort((a: User, b: User) => {
     if (a.role === 'admin' && b.role !== 'admin') return -1
     if (a.role !== 'admin' && b.role === 'admin') return 1
@@ -78,12 +96,10 @@ export const useAccountStore = defineStore('account', () => {
       const res: any = await getUserList()
       const data = res.data || res
       const list = data?.list || data?.records || (Array.isArray(data) ? data : [])
-      console.log('👤 用户列表 API 原始响应:', JSON.stringify(res))
       if (list.length > 0) {
-        console.log('👤 列表第一条所有字段:', JSON.stringify(list[0]))
-        const mapped = list.map(mapUserItem)
+        const mapped: User[] = list.map(mapUserItem)
         // 合并：API 数据优先，仅保留本地特有的 password 字段
-        const merged = mapped.map(u => {
+        const merged = mapped.map((u: User) => {
           const existing = users.value.find(e =>
             e.id === u.id || e.email === u.email || e.username === u.username
           )
@@ -137,11 +153,9 @@ export const useAccountStore = defineStore('account', () => {
       const res: any = await getUserDetail(userId)
       if (!res) throw new Error('empty response')
       const d: any = res.data || res
-      console.log('👤 用户详情 API 原始响应:', JSON.stringify(res))
       // 只要有 id 字段就认为是有效数据
       const hasId = d && (d.userId || d.user_id || d.id)
       if (hasId) {
-        console.log('👤 详情 data 所有字段:', JSON.stringify(d))
         return mapUserItem(d)
       }
     } catch (error) {
@@ -270,16 +284,21 @@ export const useAccountStore = defineStore('account', () => {
         username: user.username || user.email,
         realName: user.name,
         email: user.email,
-        password: user.password || '123456',
-        role: user.role,
-        studentNo: user.studentNo || undefined,
+        role: user.role || 'normal',
         phone: user.phone || undefined,
-        department: user.department,
-        className: user.className || undefined,
+        studentId: user.studentNo || undefined,
+        grade: user.className || undefined,
+        major: undefined,
+        college: undefined,
       })
-      // 尝试从响应中获取后端 ID
-      backendId = res?.data?.user_id ?? res?.user_id ?? res?.data?.id ?? res?.id ?? null
-    } catch (error) {
+      // 尝试从响应中获取后端 ID（兼容多种响应格式）
+      backendId = res?.data?.userId ?? res?.data?.user_id ?? res?.userId ?? res?.user_id ?? res?.data?.id ?? res?.id ?? null
+    } catch (error: any) {
+      // 422 校验错误（如账号已存在）直接抛出，不降级本地
+      if (error?.response?.status === 422) {
+        const detail = error?.response?.data?.detail || error?.response?.data?.message || '创建失败，请检查填写信息'
+        throw new Error(typeof detail === 'string' ? detail : '创建失败，请检查填写信息')
+      }
       console.warn('创建用户接口失败，本地降级:', error)
     }
 
