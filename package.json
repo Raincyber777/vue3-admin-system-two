@@ -1,0 +1,37 @@
+{
+  "name": "lab-recruitment-admin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "@fortawesome/fontawesome-free": "^7.2.0",
+    "axios": "^1.17.0",
+    "echarts": "^6.1.0",
+    "element-plus": "^2.14.1",
+    "pinia": "^2.1.7",
+    "qrcode": "^1.5.4",
+    "vue": "^3.4.21",
+    "vue-echarts": "^8.0.1",
+    "vue-router": "^4.3.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@vitejs/plugin-vue": "^5.0.4",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "@vue/tsconfig": "^0.9.1",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-oxlint": "^1.76.0",
+    "eslint-plugin-vue": "^10.10.0",
+    "oxlint": "^1.77.0",
+    "typescript": "^6.0.3",
+    "vite": "^5.2.0"
+  }
+}
