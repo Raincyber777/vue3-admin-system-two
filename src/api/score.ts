@@ -26,19 +26,19 @@ export interface ApiScoreRecord {
   full_score: number
 }
 
-/** 后端表现项 */
+/** 后端表现项（与列表接口实际返回字段一致） */
 export interface ApiPerformanceItem {
-  user_id: number
-  real_name: string
-  department: string
-  class_name: string
-  attendance: ApiAttendanceRecord[]
-  attendance_rate: number
-  homework_scores: ApiScoreRecord[]
-  homework_avg: number
-  exam_scores: ApiScoreRecord[]
-  exam_avg: number
-  rating: number
+  userId: number
+  realName: string
+  studentId: string
+  courseName?: string
+  homeworkCount?: number
+  submitCount?: number
+  avgScore?: number | null
+  submitRate?: string
+  // 以下仅详情接口返回
+  onTimeRate?: string
+  homeworkList?: { title?: string; score?: number; fullScore?: number }[]
 }
 
 /** 表现列表响应 */

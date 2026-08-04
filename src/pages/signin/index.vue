@@ -40,6 +40,10 @@
         <el-table-column prop="title" label="签到标题" min-width="160" show-overflow-tooltip />
         <el-table-column prop="courseName" label="关联课程" min-width="150" show-overflow-tooltip />
         <el-table-column prop="className" label="班级" width="70" align="center" />
+        <el-table-column prop="checkinCode" label="签到码" width="100" align="center" />
+        <el-table-column prop="endTime" label="结束时间" min-width="160" align="center" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.endTime || '-' }}</template>
+        </el-table-column>
         <el-table-column label="签到人数" width="110" align="center">
           <template #default="{ row }">
             <span class="count-text">{{ row.signinCount }} / {{ row.totalCount }}</span>
@@ -126,6 +130,18 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="结束时间" required>
+              <el-date-picker
+                v-model="createForm.endTime"
+                type="datetime"
+                placeholder="选择结束时间"
+                format="YYYY-MM-DD HH:mm"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                style="width:100%"
+              />
+            </el-form-item>
+          </el-col>
         </el-row>
       </el-form>
       <template #footer>
@@ -180,7 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Clock, Plus, List, CircleCheck, SwitchButton, Download, Delete } from '@element-plus/icons-vue'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
@@ -240,12 +256,12 @@ const onPageChange = (p: number) => { currentPage.value = p }
 const createVisible = ref(false)
 const createLoading = ref(false)
 const createForm = reactive({
-  title: '', courseId: null as number | null, courseName: '', className: '1班',
+  title: '', courseId: null as number | null, courseName: '', className: '1班', endTime: '',
 })
 
 const openCreateDialog = () => {
   createForm.title = ''; createForm.courseId = null; createForm.courseName = ''
-  createForm.className = '1班'
+  createForm.className = '1班'; createForm.endTime = ''
   loadCourseOptions()
   createVisible.value = true
 }
@@ -253,6 +269,7 @@ const openCreateDialog = () => {
 const handleCreate = async () => {
   if (!createForm.title.trim()) { ElMessage.warning('请输入签到标题'); return }
   if (createForm.courseId == null) { ElMessage.warning('请选择关联课程'); return }
+  if (!createForm.endTime) { ElMessage.warning('请选择结束时间'); return }
   createLoading.value = true
   try {
     await store.addSession({
@@ -260,8 +277,10 @@ const handleCreate = async () => {
       title: createForm.title,
       courseName: createForm.courseName,
       className: createForm.className,
+      department: '',
+      checkinCode: '',
       startTime: new Date().toLocaleString('zh-CN'),
-      endTime: '',
+      endTime: createForm.endTime,
       status: 'ongoing',
     })
     createVisible.value = false
@@ -378,9 +397,20 @@ const handleExport = async (row: SignInSession) => {
   }
 }
 
+// 自动结束签到定时器
+let autoEndTimer: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   store.fetchSessions()
   loadCourseOptions()
+  // 每 30 秒检查一次是否有到期的签到
+  autoEndTimer = setInterval(() => {
+    store.autoEndExpiredSessions()
+  }, 30000)
+})
+
+onUnmounted(() => {
+  if (autoEndTimer) { clearInterval(autoEndTimer); autoEndTimer = null }
 })
 </script>
 

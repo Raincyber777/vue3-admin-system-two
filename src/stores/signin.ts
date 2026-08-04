@@ -15,6 +15,7 @@ export interface SignInSession {
   title: string
   department: string
   className: string
+  checkinCode: string
   startTime: string
   endTime: string
   status: 'ongoing' | 'ended'
@@ -37,6 +38,17 @@ export interface SignInRecord {
   method: string
 }
 
+/** 将 ISO 时间字符串转为可读格式 "YYYY-MM-DD HH:mm:ss" */
+const formatTime = (iso: string): string => {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return iso // 已经是格式化过的，直接返回
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  } catch { return iso }
+}
+
 const mapSession = (item: any): SignInSession => ({
   id: item.checkinId ?? item.checkin_id ?? item.id ?? 0,
   courseId: item.courseId ?? item.course_id ?? 0,
@@ -44,8 +56,9 @@ const mapSession = (item: any): SignInSession => ({
   title: item.title || item.courseName || item.course_name || '签到',
   department: item.department || '',
   className: item.className || item.class_name || '',
+  checkinCode: item.checkinCode || item.checkin_code || '',
   startTime: item.createTime || item.create_time || '',
-  endTime: item.endTime || item.end_time || '',
+  endTime: formatTime(item.endTime || item.end_time || ''),
   status: item.status === 0 ? 'ended' : 'ongoing',
   signinCount: item.signedCount ?? item.checkinCount ?? item.checkin_count ?? 0,
   totalCount: item.totalCount ?? item.total_count ?? 0,
@@ -71,13 +84,13 @@ const mapRecord = (item: any): SignInRecord => {
 const MOCK_SESSIONS: SignInSession[] = [
   {
     id: 1, courseId: 1, courseName: 'Python 基础入门', title: '第1次课堂签到',
-    department: 'ai', className: '1班',
+    department: 'ai', className: '1班', checkinCode: '412991',
     startTime: '2026-07-30 09:00', endTime: '2026-07-30 09:30',
     status: 'ended', signinCount: 25, totalCount: 30, createTime: '2026-07-30 08:50',
   },
   {
     id: 2, courseId: 2, courseName: 'Web 前端开发实战', title: '第1次课堂签到',
-    department: 'software', className: '1班',
+    department: 'software', className: '1班', checkinCode: '512883',
     startTime: '2026-07-31 09:00', endTime: '',
     status: 'ongoing', signinCount: 18, totalCount: 22, createTime: '2026-07-31 08:55',
   },
@@ -89,10 +102,15 @@ export const useSignInStore = defineStore('signin', () => {
 
   const fetchSessions = async () => {
     loading.value = true
-    // 先从本地缓存加载
+    // 先从本地缓存加载，并格式化时间字段
     if (sessions.value.length === 0) {
       const cached = localStorage.getItem('signinSessions')
-      if (cached) { try { sessions.value = JSON.parse(cached) } catch { /* */ } }
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached)
+          sessions.value = parsed.map((s: any) => ({ ...s, endTime: formatTime(s.endTime) }))
+        } catch { /* */ }
+      }
     }
     try {
       const res: any = await getSignInList({ page: 1, pageSize: 200 })
@@ -149,6 +167,8 @@ export const useSignInStore = defineStore('signin', () => {
 
   const addSession = async (data: Omit<SignInSession, 'id' | 'signinCount' | 'totalCount' | 'createTime'>) => {
     let backendId: number | null = null
+    let checkinCode: string = ''
+    let apiEndTime: string = ''
     let apiError: Error | null = null
     try {
       const res: any = await createSignIn({
@@ -156,17 +176,25 @@ export const useSignInStore = defineStore('signin', () => {
         title: data.title,
         department: data.department || '',
         className: data.className,
+        endTime: data.endTime,
       })
-      // 尝试从响应获取后端 checkinId
+      // 从响应获取后端 checkinId、checkinCode、endTime
       const d = res?.data || res
       backendId = d?.checkinId ?? d?.checkin_id ?? d?.id ?? null
+      checkinCode = d?.checkinCode ?? d?.checkin_code ?? ''
+      apiEndTime = d?.endTime ?? d?.end_time ?? ''
     } catch (error: any) {
       console.warn('发起签到接口失败，本地降级:', error)
       apiError = error
     }
     const newId = backendId ?? (Math.max(0, ...sessions.value.map(s => s.id)) + 1)
     const session: SignInSession = {
-      ...data, id: newId, signinCount: 0, totalCount: 0,
+      ...data,
+      id: newId,
+      checkinCode: checkinCode || data.checkinCode || '',
+      endTime: formatTime(apiEndTime || data.endTime),
+      signinCount: 0,
+      totalCount: 0,
       createTime: new Date().toLocaleString('zh-CN'),
     }
     sessions.value.unshift(session)
@@ -265,10 +293,28 @@ export const useSignInStore = defineStore('signin', () => {
     saveSessions()
   }
 
+  /** 自动结束已到期的签到（不调用后端，仅更新本地状态） */
+  const autoEndExpiredSessions = () => {
+    const now = new Date()
+    let changed = false
+    for (const s of sessions.value) {
+      if (s.status !== 'ongoing') continue
+      if (!s.endTime) continue
+      const end = new Date(s.endTime)
+      if (isNaN(end.getTime())) continue
+      if (now >= end) {
+        s.status = 'ended'
+        changed = true
+      }
+    }
+    if (changed) saveSessions()
+  }
+
   return {
     sessions, loading,
     fetchSessions, addSession, fetchDetail,
     doManualSign, doEndSignIn, doExport,
     doDelete, doBatchDelete,
+    autoEndExpiredSessions,
   }
 })
