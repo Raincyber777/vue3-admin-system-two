@@ -37,9 +37,6 @@
         <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="name" label="姓名" min-width="100" align="center" />
         <el-table-column prop="studentId" label="学号" min-width="130" align="center" />
-        <el-table-column prop="className" label="所属班级" min-width="100" align="center">
-          <template #default="{ row }">{{ row.className || '-' }}</template>
-        </el-table-column>
         <el-table-column label="作业完成" min-width="110" align="center">
           <template #default="{ row }">{{ row.submitCount }} / {{ row.homeworkCount }}</template>
         </el-table-column>
@@ -51,8 +48,9 @@
           </template>
         </el-table-column>
         <el-table-column label="提交率" min-width="90" align="center">
-          <template #default="{ row }">{{ formatSubmitRate(row) }}</template>
+          <template #default="{ row }">{{ row.submitRate }}</template>
         </el-table-column>
+        <el-table-column prop="onTimeRate" label="按时率" min-width="90" align="center" />
         <el-table-column label="操作" min-width="100" align="center">
           <template #default="{ row }">
             <el-button type="primary" link @click="openDetail(row)">
@@ -81,70 +79,33 @@
 
     <!-- ======== 表现详情弹窗 ======== -->
     <el-dialog v-model="detailVisible" :title="detailStudent?.name + ' — 综合表现'"
-      width="800px" destroy-on-close top="3vh" class="detail-dialog">
+      width="700px" destroy-on-close top="3vh" class="detail-dialog">
       <div v-if="detailStudent" class="detail-body">
-        <!-- 出勤 -->
+        <!-- 基本信息 -->
         <div class="section">
-          <h4 class="section-title"><el-icon><Calendar /></el-icon> 出勤情况</h4>
-          <el-table :data="detailStudent.attendance" border size="small"
-            :header-cell-style="{ backgroundColor:'#f8fafc' }">
-            <el-table-column prop="courseName" label="课程" />
-            <el-table-column label="出勤/总课时" width="130" align="center">
-              <template #default="{ row }">{{ row.attended }} / {{ row.total }}</template>
-            </el-table-column>
-            <el-table-column label="出勤率" width="100" align="center">
-              <template #default="{ row }">{{ Math.round(row.attended / row.total * 100) }}%</template>
-            </el-table-column>
-          </el-table>
-          <div class="summary-row">
-            <span>总计出勤率：<strong :class="rateColor(detailStudent.attendanceRate)">{{ detailStudent.attendanceRate }}%</strong></span>
+          <h4 class="section-title"><el-icon><User /></el-icon> 基本信息</h4>
+          <div class="info-grid">
+            <div class="info-item"><span class="il">姓名</span><span class="iv">{{ detailStudent.name }}</span></div>
+            <div class="info-item"><span class="il">学号</span><span class="iv">{{ detailStudent.studentId || '-' }}</span></div>
+            <div class="info-item"><span class="il">平均分</span><span class="iv">{{ detailStudent.avgScore != null ? detailStudent.avgScore : '-' }}</span></div>
+            <div class="info-item"><span class="il">提交率</span><span class="iv">{{ detailStudent.submitRate }}</span></div>
+            <div class="info-item"><span class="il">按时率</span><span class="iv">{{ detailStudent.onTimeRate }}</span></div>
           </div>
         </div>
 
         <!-- 作业 -->
         <div class="section">
-          <h4 class="section-title"><el-icon><Notebook /></el-icon> 作业成绩</h4>
-          <el-table :data="detailStudent.homeworkScores" border size="small"
+          <h4 class="section-title"><el-icon><Notebook /></el-icon> 作业列表</h4>
+          <el-table :data="detailStudent.homeworkList" border size="small" empty-text="暂无作业记录"
             :header-cell-style="{ backgroundColor:'#f8fafc' }">
-            <el-table-column prop="title" label="作业" />
-            <el-table-column label="得分/满分" width="130" align="center">
+            <el-table-column prop="title" label="作业名称" />
+            <el-table-column label="得分/满分" width="140" align="center">
               <template #default="{ row }">{{ row.score }} / {{ row.fullScore }}</template>
             </el-table-column>
             <el-table-column label="得分率" width="100" align="center">
               <template #default="{ row }">{{ Math.round(row.score / row.fullScore * 100) }}%</template>
             </el-table-column>
           </el-table>
-          <div class="summary-row">
-            <span>作业平均分：<strong :class="rateColor(detailStudent.homeworkAvg)">{{ detailStudent.homeworkAvg }}</strong></span>
-          </div>
-        </div>
-
-        <!-- 考试 -->
-        <div class="section">
-          <h4 class="section-title"><el-icon><TrophyBase /></el-icon> 考试成绩</h4>
-          <el-table :data="detailStudent.examScores" border size="small"
-            :header-cell-style="{ backgroundColor:'#f8fafc' }">
-            <el-table-column prop="title" label="考试" />
-            <el-table-column label="得分/满分" width="130" align="center">
-              <template #default="{ row }">{{ row.score }} / {{ row.fullScore }}</template>
-            </el-table-column>
-            <el-table-column label="得分率" width="100" align="center">
-              <template #default="{ row }">{{ Math.round(row.score / row.fullScore * 100) }}%</template>
-            </el-table-column>
-          </el-table>
-          <div class="summary-row">
-            <span>考试平均分：<strong :class="rateColor(detailStudent.examAvg)">{{ detailStudent.examAvg }}</strong></span>
-          </div>
-        </div>
-
-        <!-- 综合评分 -->
-        <div class="total-score-box">
-          <span>综合评分</span>
-          <div class="score-display">
-            <span class="score-value">{{ detailStudent.rating }} 分</span>
-            <el-input-number v-model="detailStudent.rating" :min="0" :max="100" size="small" style="width:130px" />
-            <el-button type="primary" @click="saveRating" :loading="saveLoading">保存评分</el-button>
-          </div>
         </div>
       </div>
       <template #footer>
@@ -160,7 +121,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Reading, View, Calendar, Notebook, TrophyBase, Download, Search } from '@element-plus/icons-vue'
+import { Reading, View, User, Notebook, Download, Search } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
 import { useScoreStore } from '@/stores/score'
@@ -178,7 +139,7 @@ const filteredList = computed(() => {
   if (filterClass.value !== 'all') list = list.filter(s => s.className === filterClass.value)
   if (searchName.value.trim()) {
     const kw = searchName.value.trim().toLowerCase()
-    list = list.filter(s => s.name.toLowerCase().includes(kw))
+    list = list.filter(s => (s.name || '').toLowerCase().includes(kw))
   }
   list.sort((a, b) => {
     const va = a.avgScore ?? 0
@@ -201,17 +162,10 @@ const onPageChange = (p: number) => { currentPage.value = p }
 
 // ==================== 辅助 ====================
 const getRatingClass = (r: number) => r >= 90 ? 'excellent' : r >= 75 ? 'good' : r >= 60 ? 'ok' : 'poor'
-const rateColor = (v: number) => v >= 90 ? 'c-green' : v >= 75 ? 'c-blue' : v >= 60 ? 'c-orange' : 'c-red'
-const formatSubmitRate = (row: StudentRecord) => {
-  if (row.homeworkCount === 0) return '无作业'
-  if (row.submitRate === 'N/A') return '无作业'
-  return row.submitRate
-}
 
 // ==================== 详情弹窗 ====================
 const detailVisible = ref(false)
 const detailStudent = ref<StudentRecord | null>(null)
-const saveLoading = ref(false)
 
 const openDetail = async (row: StudentRecord) => {
   detailVisible.value = true
@@ -224,40 +178,25 @@ const openDetail = async (row: StudentRecord) => {
   }
 }
 
-const saveRating = () => {
-  if (!detailStudent.value) return
-  saveLoading.value = true
-  store.updateRating(detailStudent.value.id, detailStudent.value.rating)
-  saveLoading.value = false
-  ElMessage.success('评分已保存')
-}
-
 // ==================== 导出 ====================
 const exportDetail = () => {
   if (!detailStudent.value) return
   const s = detailStudent.value
 
-  const attendanceData = s.attendance.map(a => ({
-    '课程': a.courseName, '出勤课时': a.attended, '总课时': a.total,
-    '出勤率': Math.round(a.attended / a.total * 100) + '%',
-  }))
-  const hwData = s.homeworkScores.map(h => ({
+  const hwData = s.homeworkList.map(h => ({
     '作业': h.title, '得分': h.score, '满分': h.fullScore,
     '得分率': Math.round(h.score / h.fullScore * 100) + '%',
   }))
-  const examData = s.examScores.map(e => ({
-    '考试': e.title, '得分': e.score, '满分': e.fullScore,
-    '得分率': Math.round(e.score / e.fullScore * 100) + '%',
-  }))
 
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceData), '出勤')
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hwData), '作业')
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(examData), '考试')
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{
     '姓名': s.name,
-    '班级': s.className, '出勤率': s.attendanceRate + '%',
-    '作业平均': s.homeworkAvg, '考试平均': s.examAvg, '综合评分': s.rating,
+    '学号': s.studentId,
+    '班级': s.className,
+    '平均分': s.avgScore != null ? s.avgScore : '-',
+    '提交率': s.submitRate,
+    '按时率': s.onTimeRate,
   }]), '汇总')
 
   XLSX.writeFile(wb, `${s.name}_综合表现.xlsx`)
@@ -269,7 +208,6 @@ const batchExport = () => {
     '序号': i + 1,
     '姓名': s.name,
     '学号': s.studentId,
-    '班级': s.className,
     '作业完成': `${s.submitCount}/${s.homeworkCount}`,
     '平均分': s.avgScore != null ? s.avgScore : '-',
     '提交率': s.submitRate,
@@ -311,13 +249,9 @@ onMounted(() => { store.fetchStudents() })
 .section { margin-bottom:20px; }
 .section-title { display:flex; align-items:center; gap:6px; font-size:15px; color:#1e293b; margin:0 0 10px; }
 .summary-row { margin-top:8px; padding:6px 10px; background:#f8fafc; border-radius:4px; font-size:14px; color:#475569; }
-.c-green { color:#16a34a; }
-.c-blue { color:#2563eb; }
-.c-orange { color:#d97706; }
-.c-red { color:#dc2626; }
 
-.total-score-box { display:flex; justify-content:space-between; align-items:center;
-  margin-top:20px; padding:16px 20px; background:linear-gradient(135deg,#eff6ff,#dbeafe); border-radius:10px; font-size:16px; font-weight:600; color:#1e293b; }
-.score-display { display:flex; align-items:center; gap:10px; }
-.score-value { font-size:24px; font-weight:700; color:#2563eb; }
+.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.info-item { display:flex; padding:8px 12px; background:#f8fafc; border-radius:6px; }
+.il { color:#64748b; font-size:13px; margin-right:8px; flex-shrink:0; }
+.iv { color:#1e293b; font-size:14px; font-weight:500; }
 </style>

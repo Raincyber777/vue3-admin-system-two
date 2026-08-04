@@ -12,6 +12,7 @@ export interface ApiSignInItem {
   title: string
   department: string
   class_name: string
+  checkin_code: string
   start_time: string
   end_time: string
   status: number           // 0=进行中 1=已结束
@@ -48,8 +49,7 @@ export interface CreateSignInParams {
   title: string
   department: string
   className: string
-  startTime?: string
-  endTime?: string
+  endTime: string
 }
 
 /**
