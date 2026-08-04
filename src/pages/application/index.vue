@@ -6,6 +6,14 @@
       </template>
     </PageHeaderCard>
 
+    <!-- 模拟数据提示条 -->
+    <div v-if="usingMockData" class="mock-warning-banner">
+      <div class="mock-warning-content">
+        <el-icon class="mock-warning-icon"><WarningFilled /></el-icon>
+        <span>当前展示<strong>模拟数据</strong>，后端接口未返回有效数据或请求失败。请检查 Network 中 /v1/admin/sign/list 接口状态。</span>
+      </div>
+    </div>
+
     <!-- 筛选区域 -->
     <div class="filter-card">
       <div class="filter-header">
@@ -14,29 +22,12 @@
         </div>
       </div>
       <el-form :inline="true" :model="filterForm" class="filter-form">
-        <el-form-item label="姓名" class="filter-item">
-          <el-input
-            v-model="filterForm.studentName"
-            placeholder="请输入姓名"
-            clearable
-            class="filter-input"
-            :prefix-icon="User"
-          />
-        </el-form-item>
-        <el-form-item label="学号" class="filter-item">
-          <el-input
-            v-model="filterForm.studentId"
-            placeholder="请输入学号"
-            clearable
-            class="filter-input"
-            :prefix-icon="Tickets"
-          />
-        </el-form-item>
         <el-form-item label="学院" class="filter-item">
           <el-select
             v-model="filterForm.college"
-            placeholder="请选择学院"
+            placeholder="请选择或输入学院"
             clearable
+            filterable
             class="filter-select"
           >
             <el-option
@@ -50,8 +41,9 @@
         <el-form-item label="专业" class="filter-item">
           <el-select
             v-model="filterForm.major"
-            placeholder="请选择专业"
+            placeholder="请选择或输入专业"
             clearable
+            filterable
             class="filter-select"
           >
             <el-option
@@ -79,10 +71,10 @@
             value-format="YYYY-MM-DD"
             class="filter-date-picker"
           />
+          <el-button class="btn-reset" @click="handleReset">
+            <el-icon><Refresh /></el-icon> 重置
+          </el-button>
         </el-form-item>
-        <el-button class="btn-reset" @click="handleReset" style="margin-left: 24px;">
-          <el-icon><Refresh /></el-icon> 重置
-        </el-button>
       </el-form>
     </div>
 
@@ -121,12 +113,6 @@
         <el-button class="btn-export" @click="handleExport" :loading="exportLoading">
           <el-icon><Download /></el-icon> 导出名单
         </el-button>
-        <el-button class="btn-refresh" @click="handleRefresh" :loading="refreshLoading">
-          <template #icon>
-            <el-icon><Refresh /></el-icon>
-          </template>
-          刷新数据
-        </el-button>
       </div>
     </div>
 
@@ -159,27 +145,15 @@
             <span class="student-id">{{ row.student_id }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="college" label="学院" min-width="160" align="center" show-overflow-tooltip />
-        <el-table-column prop="major" label="专业" min-width="140" align="center" show-overflow-tooltip />
+        <el-table-column prop="college" label="学院" min-width="140" align="center" show-overflow-tooltip />
+        <el-table-column prop="department" label="部门" min-width="140" align="center" show-overflow-tooltip />
+        <el-table-column prop="major" label="专业" min-width="120" align="center" show-overflow-tooltip />
         <el-table-column prop="class_name" label="班级" min-width="120" align="center">
           <template #default="{ row }">
             <span>{{ row.class_name }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="phone" label="手机号" min-width="130" align="center">
-          <template #default="{ row }">
-            <span class="privacy-text phone-masked" @click="handleShowPrivacy(row, 'phone')" title="点击查看完整手机号">
-              {{ maskPhone(row.phone) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="self_intro" label="自我介绍" min-width="200" align="center">
-          <template #default="{ row }">
-            <span class="privacy-text intro-truncated" @click="handleShowPrivacy(row, 'self_intro')" title="点击查看完整自我介绍">
-              {{ truncateText(row.self_intro, 12) }}
-            </span>
-          </template>
-        </el-table-column>
+        <el-table-column prop="phone" label="手机号" min-width="130" align="center" />
         <el-table-column label="操作" width="220" align="center" fixed="right" class-name="action-column">
           <template #default="{ row }">
             <div class="action-buttons">
@@ -194,12 +168,10 @@
                   <el-icon><CircleClose /></el-icon> 驳回
                 </el-button>
               </template>
-              <el-button type="danger" link @click="handleCancelSign(row)">
-                <el-icon><Close /></el-icon> 取消
-              </el-button>
             </div>
           </template>
         </el-table-column>
+    
       </el-table>
 
       <!-- 分页组件 -->
@@ -319,26 +291,6 @@
         </div>
       </template>
     </el-dialog>
-
-    <!-- 隐私信息弹窗（手机号 / 自我介绍完整内容） -->
-    <el-dialog
-      v-model="privacyDialogVisible"
-      :title="privacyDialogTitle"
-      width="480px"
-      destroy-on-close
-      class="privacy-dialog"
-    >
-      <div class="privacy-content">
-        <el-icon class="privacy-icon"><Lock /></el-icon>
-        <p class="privacy-full-text">{{ privacyDialogContent }}</p>
-      </div>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="privacyDialogVisible = false" class="btn-close">关闭</el-button>
-        </div>
-      </template>
-    </el-dialog>
-
   </div>
 </template>
 
@@ -347,9 +299,8 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
 import {
-  FolderChecked, Refresh,
-  User, Tickets, View,
-  Download, Lock, Close,
+  FolderChecked, Refresh, View,
+  Download,
   CircleCheck, CircleClose
 } from '@element-plus/icons-vue'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
@@ -365,6 +316,7 @@ const signSwitchEnabled = computed({
   set: () => {},
 })
 const switchLoading = computed(() => applicationStore.switchLoading)
+const usingMockData = computed(() => applicationStore.usingMockData)
 
 const handleToggleSwitch = async (): Promise<boolean> => {
   const newStatus = signSwitchEnabled.value ? '关闭' : '开启'
@@ -451,11 +403,6 @@ const handleBatchReject = async () => {
   }
 }
 
-// 隐私弹窗
-const privacyDialogVisible = ref(false)
-const privacyDialogTitle = ref('')
-const privacyDialogContent = ref('')
-
 // ==================== 计算属性 ====================
 const filteredData = computed(() => {
   let data = [...allData.value]
@@ -477,7 +424,7 @@ const filteredData = computed(() => {
   if (filterForm.dateRange && filterForm.dateRange.length === 2) {
     const [startDate, endDate] = filterForm.dateRange
     data = data.filter(item => {
-      const enrollDate = item.enrollment_time.split('T')[0]
+      const enrollDate = item.enrollment_time.substring(0, 10)
       return enrollDate >= startDate && enrollDate <= endDate
     })
   }
@@ -505,10 +452,13 @@ const currentPageData = computed(() => {
 const filteredTotal = computed(() => filteredData.value.length)
 
 // ==================== 方法 ====================
-const formatDate = (dateStr) => {
+const formatDate = (dateStr?: string) => {
   if (!dateStr) return '-'
-  const date = new Date(dateStr)
-  return date.toLocaleString('zh-CN')
+  // 后端格式 "2026-07-25 09:00:00"，直接截取避免 new Date() 时区偏差
+  const [datePart, timePart] = dateStr.split(' ')
+  if (!timePart) return dateStr
+  const [year, month, day] = datePart.split('-')
+  return `${year}/${month}/${day} ${timePart}`
 }
 
 const headerCellStyle = {
@@ -532,32 +482,6 @@ const getStatusText = (status) => {
   return textMap[status] || status
 }
 
-/** 手机号脱敏：只显示前3位，其余用 * 代替 */
-const maskPhone = (phone: string) => {
-  if (!phone) return '-'
-  return phone.slice(0, 3) + '****' + phone.slice(-2)
-}
-
-/** 文本截断：超过 maxLen 则截断并加省略号 */
-const truncateText = (text: string, maxLen: number = 12) => {
-  if (!text) return ''
-  if (text.length <= maxLen) return text
-  return text.slice(0, maxLen) + '...'
-}
-
-/** 点击隐私字段时弹出弹窗显示完整内容（API 详情优先，列表数据兜底） */
-const handleShowPrivacy = async (row: CourseEnrollmentItem, field: 'phone' | 'self_intro') => {
-  const detail = await applicationStore.fetchSignDetail(row.id)
-  if (field === 'phone') {
-    privacyDialogTitle.value = '手机号'
-    privacyDialogContent.value = detail?.phone || row.phone || '(暂无)'
-  } else {
-    privacyDialogTitle.value = '自我介绍'
-    privacyDialogContent.value = detail?.self_intro || row.self_intro || '(暂无)'
-  }
-  privacyDialogVisible.value = true
-}
-
 const handleReset = () => {
   filterForm.studentName = ''
   filterForm.studentId = ''
@@ -567,18 +491,6 @@ const handleReset = () => {
   filterForm.dateRange = null
   currentPage.value = 1
   ElMessage.success('已重置筛选条件')
-}
-
-const handleRefresh = async () => {
-  refreshLoading.value = true
-  try {
-    await applicationStore.fetchApplications()
-    ElMessage.success('刷新成功')
-  } catch (error) {
-    ElMessage.error('刷新失败，请重试')
-  } finally {
-    refreshLoading.value = false
-  }
 }
 
 const handleSizeChange = (val) => {
@@ -648,18 +560,6 @@ const handleReject = async (row: CourseEnrollmentItem) => {
   }
 }
 
-const handleCancelSign = async (row: CourseEnrollmentItem) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要取消「${row.student_name}」的报名吗？`,
-      '取消报名',
-      { confirmButtonText: '确定', cancelButtonText: '取消', customClass: 'no-icon-dlg' }
-    )
-    await applicationStore.cancelApplication(row.id)
-    ElMessage.success('已取消报名')
-  } catch { /* 用户取消操作 */ }
-}
-
 // ==================== 导出功能 ====================
 const handleExport = async () => {
   exportLoading.value = true
@@ -719,6 +619,41 @@ onMounted(async () => {
 .review-page {
   min-height: calc(100vh - 40px);
     padding: 20px;
+}
+
+/* ==================== 模拟数据提示条 ==================== */
+.mock-warning-banner {
+  margin-bottom: 16px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #f59e0b;
+  border-left: 4px solid #d97706;
+  border-radius: 8px;
+  animation: mockPulse 2s ease-in-out infinite;
+}
+
+@keyframes mockPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.mock-warning-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.mock-warning-icon {
+  font-size: 20px;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.mock-warning-content strong {
+  color: #b45309;
+  font-weight: 700;
 }
 
 /* ==================== 页面标题 ==================== */
@@ -918,6 +853,7 @@ onMounted(async () => {
 }
 
 .btn-reset {
+  margin-left: 20px;
   background: #fff;
 }
 
@@ -1370,66 +1306,6 @@ onMounted(async () => {
 .fade-leave-to {
   opacity: 0;
   transform: translateX(-10px);
-}
-
-/* ==================== 隐私弹窗 ==================== */
-.privacy-dialog :deep(.el-dialog__header) {
-  padding: 20px 24px 0;
-}
-
-.privacy-dialog :deep(.el-dialog__body) {
-  padding: 16px 24px 24px;
-}
-
-.privacy-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-.privacy-icon {
-  font-size: 36px;
-  color: #409eff;
-}
-
-.privacy-full-text {
-  font-size: 15px;
-  color: #1a202c;
-  line-height: 1.8;
-  word-break: break-all;
-  padding: 16px 20px;
-  background: #f8fafc;
-  border-radius: 8px;
-  width: 100%;
-  text-align: center;
-  margin: 0;
-}
-
-/* 隐私字段样式 */
-.privacy-text {
-  cursor: pointer;
-  color: #409eff;
-  user-select: none;
-  transition: color 0.2s;
-}
-
-.privacy-text:hover {
-  color: #1976d2;
-  text-decoration: underline;
-}
-
-.phone-masked {
-  font-family: 'Consolas', monospace;
-  font-size: 13px;
-  background: #f1f5f9;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.intro-truncated {
-  font-size: 13px;
-  color: #64748b;
 }
 
 .intro-full {

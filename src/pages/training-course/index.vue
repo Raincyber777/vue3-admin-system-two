@@ -76,9 +76,6 @@
             <el-button v-if="row.status === 'draft'" type="success" link size="small" @click="handlePublish(row)">
               <el-icon><CircleCheck /></el-icon> 发布
             </el-button>
-            <el-button v-if="row.status === 'published'" type="warning" link size="small" @click="handleUnpublish(row)">
-              <el-icon><Bottom /></el-icon> 下架
-            </el-button>
             <el-button type="danger" link size="small" @click="handleDelete(row)">
               <el-icon><Delete /></el-icon> 删除
             </el-button>
@@ -261,7 +258,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Collection, Plus, Edit, CircleCheck, Delete, Bottom, Calendar } from '@element-plus/icons-vue'
+import { Collection, Plus, Edit, CircleCheck, Delete, Calendar } from '@element-plus/icons-vue'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
 import { useTrainingCourseStore } from '@/stores/training-course'
 import type { Course } from '@/stores/training-course'
@@ -456,17 +453,6 @@ const handlePublishClick = () => {
 const handlePublish = (row: Course) => {
   pendingPublishTarget = row.id
   confirmVisible.value = true
-}
-
-const handleUnpublish = async (row: Course) => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要下架「${row.name}」吗？下架后课程将变为草稿状态，可随时重新发布。`,
-      '确认下架',
-      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
-    )
-    await store.unpublishCourse(row.id)
-  } catch { /* 取消 */ }
 }
 
 /** 确认发布 */

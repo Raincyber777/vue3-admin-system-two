@@ -70,6 +70,13 @@
           <template #title>课程管理</template>
         </el-menu-item>
 
+        <el-menu-item index="/training-detail">
+          <div class="menu-icon-wrapper">
+            <el-icon><Notebook /></el-icon>
+          </div>
+          <template #title>培训名单</template>
+        </el-menu-item>
+
         <el-menu-item index="/score">
           <div class="menu-icon-wrapper">
             <el-icon><Reading /></el-icon>
@@ -218,6 +225,7 @@ const currentRouteName = computed(() => {
     '/article': '日志管理',
     '/announcement': '公告管理',
     '/training-course': '课程管理',
+    '/training-detail': '培训名单',
     '/account': '账号管理',
     '/personal': '个人中心',
     '/score': '学员表现',

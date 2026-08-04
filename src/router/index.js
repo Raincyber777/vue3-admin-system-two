@@ -49,6 +49,12 @@ const router = createRouter({
           meta: { title: '课程管理', requiresAuth: true }
         },
         {
+          path: 'training-detail',
+          name: 'TrainingDetail',
+          component: () => import('../pages/training-course/TrainingDetail.vue'),
+          meta: { title: '培训名单', requiresAuth: true }
+        },
+        {
           path: 'personal',
           name: 'Personal',
           component: () => import('../pages/personal/index.vue'),

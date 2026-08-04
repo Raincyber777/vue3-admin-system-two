@@ -3,43 +3,28 @@ import { ref, computed } from 'vue'
 import { getSignList, getSignDetail, approveSign, rejectSign, getSignSwitch, updateSignSwitch, type SignDetail } from '@/api/sign'
 import type { CourseEnrollmentItem } from '@/types/training'
 
-/** 后端状态码 → 前端状态 */
+/** 后端状态码 → 前端状态（0=待审核, 1=已通过, 2=已驳回，其他=待审核） */
 const mapStatus = (status: number): 'pending' | 'approved' | 'rejected' => {
   if (status === 1) return 'approved'
   if (status === 2) return 'rejected'
   return 'pending'
 }
 
-/** 学院名 → 中文显示（中文直接透传，英文码查表翻译，查不到原样返回） */
-const collegeLabel = (val: string): string => {
-  if (!val) return ''
-  // 包含中文则直接返回
-  if (/[一-鿿]/.test(val)) return val
-  // 英文码 → 中文名
-  const map: Record<string, string> = {
-    software: '软件开发实验室',
-    ai: '人工智能实验室',
-    software_engineering: '软件工程学院',
-    computer_science: '计算机学院',
-  }
-  return map[val] || val
-}
-
-/** 将后端 SignItem 映射为前端 CourseEnrollmentItem */
+/** 将后端 SignItem 映射为前端 CourseEnrollmentItem（匹配列表接口实际字段） */
 const mapSignItem = (s: any): CourseEnrollmentItem => ({
-  id: s.sign_id ?? s.id ?? 0,
-  course_id: s.course_id ?? s.courseId ?? 0,
-  course_title: s.course_name ?? s.courseName ?? '',
-  student_id: s.student_id ?? s.studentId ?? '',
-  student_name: s.real_name ?? s.realName ?? s.student_name ?? s.name ?? s.user_name ?? s.username ?? '',
-  department: collegeLabel(s.department ?? ''),
-  college: collegeLabel(s.college) || '',
+  id: s.signId ?? s.sign_id ?? s.id ?? 0,
+  course_id: s.courseId ?? s.course_id ?? 0,
+  course_title: s.courseName ?? s.course_name ?? '',
+  student_id: s.studentId ?? s.student_id ?? '',
+  student_name: s.realName ?? s.real_name ?? s.name ?? '',
+  department: s.departmentName || s.department || '',
+  college: s.college || '',
   major: s.major || '',
-  class_name: s.class_name ?? s.className ?? '',
+  class_name: s.className ?? s.class_name ?? '',
   phone: s.phone ?? s.user_phone ?? '',
-  self_intro: s.selfIntroduction || s.auditRemark || s.sign_info || s.self_intro || s.intro || s.introduction || s.description || s.content || s.remark || s.text || s.bio || '',
-  status: mapStatus(s.status),
-  enrollment_time: s.sign_time ?? s.create_time ?? s.enrollment_time ?? '',
+  self_intro: s.selfIntroduction ?? s.signInfo ?? s.sign_info ?? '',
+  status: mapStatus(s.status ?? 0),
+  enrollment_time: s.signTime ?? s.submitTime ?? s.sign_time ?? s.create_time ?? '',
 })
 
 /** 将后端详情响应映射为前端 CourseEnrollmentItem（匹配实际响应格式） */
@@ -49,8 +34,8 @@ const mapSignDetail = (d: any): CourseEnrollmentItem => ({
   course_title: '', // 后端详情不返回课程信息
   student_id: d.studentId || d.student_id || '',
   student_name: d.name || d.user_real_name || d.real_name || '',
-  department: d.departmentText || collegeLabel(String(d.department || '')),
-  college: collegeLabel(d.college || ''),
+  department: d.departmentText || d.department || '',
+  college: d.college || '',
   major: d.major || '',
   class_name: d.className || d.class_name || '',
   phone: d.phone || d.user_phone || '',
@@ -61,104 +46,6 @@ const mapSignDetail = (d: any): CourseEnrollmentItem => ({
   review_time: d.auditTime || d.review_time || '',
 })
 
-/** 模拟报名数据 —— 后端接口未就绪时用于前端开发预览 */
-const MOCK_APPLICANTS: CourseEnrollmentItem[] = [
-  {
-    id: 1,
-    course_id: 101,
-    course_title: 'Web 前端开发培训',
-    student_id: '20241450101',
-    student_name: '张三',
-    department: '软件开发实验室',
-    college: '计算机与信息工程学院',
-    major: '软件工程',
-    class_name: '软件2401班',
-    phone: '13812345678',
-    self_intro: '热爱前端开发，熟悉 Vue 和 React 框架，参加过多次编程竞赛并获得省级奖项，希望能加入实验室进一步提升技术水平。',
-    status: 'pending',
-    enrollment_time: '2026-07-20T10:30:00',
-  },
-  {
-    id: 2,
-    course_id: 102,
-    course_title: 'AI 算法入门培训',
-    student_id: '20241450102',
-    student_name: '李四',
-    department: '软件开发实验室',
-    college: '计算机与信息工程学院',
-    major: '软件工程',
-    class_name: '软件2402班',
-    phone: '13998765432',
-    self_intro: '对前端开发方向非常感兴趣，自学过 Vue 和 React，希望能有机会参与实验室的项目开发。',
-    status: 'pending',
-    enrollment_time: '2026-07-21T14:20:00',
-  },
-  {
-    id: 3,
-    course_id: 101,
-    course_title: 'Web 前端开发培训',
-    student_id: '20241450103',
-    student_name: '王五',
-    department: '软件开发实验室',
-    college: '信息与通信工程学院',
-    major: '计算机科学与技术',
-    class_name: '计科2402班',
-    phone: '13611223344',
-    self_intro: '具备扎实的编程基础，熟悉 JavaScript 和 TypeScript，对项目开发流程有一定了解，希望在实践中锻炼自己。',
-    status: 'approved',
-    enrollment_time: '2026-07-19T09:15:00',
-    review_time: '2026-07-22T16:30:00',
-    review_remark: '条件优秀，予以通过',
-  },
-  {
-    id: 4,
-    course_id: 102,
-    course_title: 'AI 算法入门培训',
-    student_id: '20241450104',
-    student_name: '赵六',
-    department: '软件开发实验室',
-    college: '计算机与信息工程学院',
-    major: '软件工程',
-    class_name: '软件2403班',
-    phone: '15088997766',
-    self_intro: '对项目开发有浓厚兴趣，熟悉 JavaScript 和 SQL，希望能系统学习前端开发相关知识。',
-    status: 'rejected',
-    enrollment_time: '2026-07-18T11:00:00',
-    review_time: '2026-07-22T10:00:00',
-    review_remark: '下学期课业较多，建议参加下期培训',
-  },
-  {
-    id: 5,
-    course_id: 101,
-    course_title: 'Web 前端开发培训',
-    student_id: '20241450105',
-    student_name: '孙七',
-    department: '软件开发实验室',
-    college: '计算机与信息工程学院',
-    major: '软件工程',
-    class_name: '软件2403班',
-    phone: '18755667788',
-    self_intro: '对 UI/UX 设计有兴趣，同时也想学习前端开发技术，做一名既懂设计又懂开发的全栈设计师。',
-    status: 'pending',
-    enrollment_time: '2026-07-22T08:45:00',
-  },
-  {
-    id: 6,
-    course_id: 102,
-    course_title: 'AI 算法入门培训',
-    student_id: '20241450106',
-    student_name: '周八',
-    department: '软件开发实验室',
-    college: '信息与通信工程学院',
-    major: '计算机科学与技术',
-    class_name: '计科2403班',
-    phone: '15233445566',
-    self_intro: '跨专业对软件开发产生兴趣，有一定编程基础，希望能通过培训快速入门前端开发领域。',
-    status: 'pending',
-    enrollment_time: '2026-07-23T15:30:00',
-  },
-]
-
 export const useApplicationStore = defineStore('application', () => {
   const applicants = ref<CourseEnrollmentItem[]>([])
   const loading = ref(false)
@@ -167,19 +54,6 @@ export const useApplicationStore = defineStore('application', () => {
   /** 报名开关状态 */
   const signSwitchEnabled = ref(true)
   const switchLoading = ref(false)
-
-  // 已取消报名的 ID 集合（localStorage 持久化，刷新不丢失）
-  const getCancelledIds = (): Set<number> => {
-    try {
-      const stored = localStorage.getItem('cancelledSignIds')
-      return stored ? new Set(JSON.parse(stored)) : new Set()
-    } catch { return new Set() }
-  }
-  const saveCancelledId = (signId: number) => {
-    const ids = getCancelledIds()
-    ids.add(signId)
-    localStorage.setItem('cancelledSignIds', JSON.stringify([...ids]))
-  }
 
   // 本地审核状态（localStorage 持久化，刷新不丢失）
   // 格式：{ [signId]: 'approved' | 'rejected' }
@@ -224,22 +98,11 @@ export const useApplicationStore = defineStore('application', () => {
     loading.value = true
     try {
       const res: any = await getSignList()
-      // 兼容多种响应格式：{ data: { list } } / { data: [...] } / { list } / [...]
-      const list = res.data?.list || res.data?.records || res.data || res.list || res
-      const arr = Array.isArray(list) ? list : (list?.list || list?.records || [])
-      if (arr.length > 0) {
-        applicants.value = arr.map(mapSignItem)
-        usingMockData.value = false
-      } else {
-        // 接口返回空数据时使用 mock
-        applicants.value = [...MOCK_APPLICANTS]
-        usingMockData.value = true
-      }
-      // 过滤掉已取消的报名（localStorage 持久化）
-      const cancelledIds = getCancelledIds()
-      if (cancelledIds.size > 0) {
-        applicants.value = applicants.value.filter(a => !cancelledIds.has(a.id))
-      }
+      // 后端返回 { total, list: [...] }
+      const list = res?.list || res?.data?.list || []
+      const arr = Array.isArray(list) ? list : []
+      applicants.value = arr.map(mapSignItem)
+      usingMockData.value = arr.length === 0
       // 应用本地保存的审核状态覆盖（持久化，刷新不丢失）
       const localStatus = getLocalReviewStatus()
       for (const a of applicants.value) {
@@ -247,12 +110,12 @@ export const useApplicationStore = defineStore('application', () => {
           a.status = localStatus[a.id]
         }
       }
-      // 逐条请求详情填充自我介绍（间隔限流）
+      // 逐条请求详情填充手机号、部门、班级、自我介绍等列表不返回的字段
       fetchDetailsForIntro()
       return applicants.value
     } catch (error) {
-      console.warn('获取报名列表失败，使用模拟数据:', error)
-      applicants.value = [...MOCK_APPLICANTS]
+      console.warn('获取报名列表失败:', error)
+      applicants.value = []
       usingMockData.value = true
       return applicants.value
     } finally {
@@ -346,15 +209,6 @@ export const useApplicationStore = defineStore('application', () => {
     return true
   }
 
-  /** 取消报名（纯前端，localStorage 持久化） */
-  async function cancelApplication(signId: number): Promise<boolean> {
-    // 存到 localStorage，刷新页面也不会恢复
-    saveCancelledId(signId)
-    // 从列表中移除
-    applicants.value = applicants.value.filter(a => a.id !== signId)
-    return true
-  }
-
   return {
     applicants,
     loading,
@@ -370,6 +224,5 @@ export const useApplicationStore = defineStore('application', () => {
     toggleSignSwitch,
     approveApplication,
     rejectApplication,
-    cancelApplication,
   }
 })
