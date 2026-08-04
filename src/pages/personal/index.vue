@@ -82,11 +82,7 @@
             </div>
           </template>
           <div class="info-content">
-            <div class="info-item">
-              <span class="info-label">姓名</span>
-              <span class="info-value">{{ (userInfo as any)?.name || (userInfo as any)?.username || '-' }}</span>
-              <el-button size="small" link @click="openEditUsernameDialog">修改</el-button>
-            </div>
+
             <div class="info-item">
               <span class="info-label">邮箱</span>
               <span class="info-value">{{ userInfo?.email || '-' }}</span>
@@ -103,19 +99,6 @@
         </el-card>
       </div>
     </div>
-
-    <!-- 修改用户名弹窗 -->
-    <el-dialog v-model="showEditUsernameDialog" title="修改姓名" width="400px" destroy-on-close>
-      <el-form :model="editUsernameForm" label-width="80px">
-        <el-form-item label="新姓名">
-          <el-input v-model="editUsernameForm.username" placeholder="请输入新姓名" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showEditUsernameDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleEditUsername">确认修改</el-button>
-      </template>
-    </el-dialog>
 
     <!-- 修改密码弹窗 -->
     <el-dialog v-model="showChangePasswordDialog" title="修改密码" width="480px" destroy-on-close>
@@ -195,24 +178,6 @@ const studentCount = computed(() => applicationStore.approvedApplicants.length)
 
 // 安全信息
 const lastLoginTime = ref('首次登录')
-// 修改用户名
-const showEditUsernameDialog = ref(false)
-const editUsernameForm = reactive({
-  username: ''
-})
-
-const openEditUsernameDialog = () => {
-  showEditUsernameDialog.value = true
-  editUsernameForm.username = userInfo.value?.username || ''
-}
-
-const handleEditUsername = () => {
-  if (!editUsernameForm.username.trim()) { ElMessage.warning('请输入姓名'); return }
-  userStore.updateUsername(editUsernameForm.username)
-  ElMessage.success('姓名修改成功')
-  showEditUsernameDialog.value = false
-}
-
 // 修改密码
 const showChangePasswordDialog = ref(false)
 

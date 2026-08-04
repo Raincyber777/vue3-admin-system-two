@@ -45,7 +45,6 @@
             <el-tag :type="row.role==='admin'?'':'success'" size="small">{{ row.role==='admin'?'管理员':'用户' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="className" label="班级" width="70" />
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <span :class="row.status === 'active' ? 'status-active' : 'status-disabled'">
