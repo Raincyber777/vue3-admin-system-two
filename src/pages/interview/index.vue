@@ -373,7 +373,7 @@ const filterClass = ref('all')
 const filteredList = computed(() => {
   const list = [...store.homeworks]
   if (filterClass.value !== 'all') {
-    return list.filter(h => h.className === filterClass.value)
+    return list.filter(h => !h.className || h.className === filterClass.value)
   }
   return list
 })
