@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { createHomework as createHomeworkApi, updateHomeworkApi, deleteHomeworkApi, getHomeworkList, getSubmitList, getSubmitDetail, submitScore, deleteSubmit, batchDeleteSubmit, type ApiHomeworkItem, type ApiSubmitItem, type SubmitDetail } from '@/api/homework'
-import type { Homework, Question, QuestionType } from '@/types/homework'
+import { createHomework as createHomeworkApi, updateHomeworkApi, deleteHomeworkApi, getHomeworkList, getSubmitList, getSubmitDetail, submitScore, deleteSubmit, batchDeleteSubmit } from '@/api/homework'
+import type { Homework, Question } from '@/types/homework'
 
 /** 模拟作业假数据 */
 const MOCK_HOMEWORKS: Homework[] = [
@@ -237,73 +237,210 @@ export const useHomeworkStore = defineStore('homework', () => {
     localStorage.setItem('deletedHomeworkIds', JSON.stringify([...ids]))
   }
 
+  // ==================== 本地持久化 ====================
+  const saveHomeworks = () => {
+    localStorage.setItem('localHomeworks', JSON.stringify(homeworks.value))
+  }
+
+  const loadLocalHomeworks = (): Homework[] => {
+    try {
+      const cached = localStorage.getItem('localHomeworks')
+      return cached ? JSON.parse(cached) : []
+    } catch { return [] }
+  }
+
   // ==================== 数据加载 ====================
   const fetchHomeworks = async () => {
+    // 从本地缓存加载（保留题目数据），作为基础数据
+    const cached = loadLocalHomeworks()
+    if (cached.length > 0 && homeworks.value.length === 0) {
+      homeworks.value = cached
+    }
+
+    // 读取已删除记录，用于后续过滤
+    const deletedIds = getDeletedHomeworkIds()
+
     try {
-      const res: any = await getHomeworkList()
+      const res: any = await getHomeworkList({ page: 1, size: 100 })
       const data = res.data || res
       const list = data?.list || (Array.isArray(data) ? data : [])
-      homeworks.value = list.map((item: any) => ({
-        id: item.homeworkId ?? item.homework_id ?? 0,
-        title: item.homeworkTitle ?? item.homework_title ?? '',
-        department: 'software' as const,
-        publishDate: item.createTime ?? item.create_time ?? '',
-        deadline: item.deadline || '',
-        questions: [],
-        courseId: item.courseId ?? item.course_id ?? 0,
-        courseName: item.courseName ?? item.course_name ?? '',
-        className: item.groupName || item.group_name || '',
-        totalScore: 0,
-        status: 'published' as const,
-        createdAt: item.createTime ?? item.create_time ?? '',
-        createdBy: '管理员',
-      }))
+      const localList = [...homeworks.value]
+      console.log('fetchHomeworks - 本地数据量:', localList.length, 'API返回量:', list.length, 'API total:', data?.total)
+
+      // 找出哪些本地数据已被 API 匹配（优先用 ID 匹配，找不到再用标题）
+      const matchedLocalIds = new Set<number>()
+      const findLocal = (apiId: number, apiTitle: string): Homework | undefined => {
+        // 优先用 ID 精确匹配（包括真实 ID 和临时 ID）
+        const byId = localList.find(l => l.id === apiId)
+        if (byId) {
+          matchedLocalIds.add(byId.id)
+          return byId
+        }
+        // 如果 API 有返回但 ID 不匹配（说明是新建的），用标题匹配临时 ID 数据
+        if (apiId > 0) {
+          const byTitle = localList.find(l => l.title === apiTitle && l.id > 1000000)
+          if (byTitle) {
+            matchedLocalIds.add(byTitle.id)
+            return byTitle
+          }
+        }
+        return undefined
+      }
+
+      const mappedList = list
+        .filter((item: any) => {
+          const id = item.homeworkId ?? item.homework_id ?? 0
+          return !deletedIds.has(id)
+        })
+        .map((item: any) => {
+          const id = item.homeworkId ?? item.homework_id ?? 0
+          const title = item.homeworkTitle ?? item.homework_title ?? ''
+          const local = findLocal(id, title)
+
+          // 字段优先级：本地 > API（本地包含用户选择的 className、完整题目等信息）
+          const apiClassName = item.groupName || item.group_name || ''
+          const finalClassName = local?.className || apiClassName || ''
+
+          return {
+            id,
+            title: local?.title || title,  // 用本地标题（可能包含格式化内容）
+            department: local?.department || 'software' as const,
+            publishDate: local?.publishDate || (item.createTime ?? item.create_time ?? ''),
+            deadline: local?.deadline || item.deadline || '',
+            questions: local?.questions || [],  // 保留本地题目数据
+            courseId: local?.courseId ?? item.courseId ?? item.course_id ?? 0,
+            courseName: local?.courseName || (item.courseName ?? item.course_name ?? ''),
+            className: finalClassName,
+            totalScore: local?.totalScore || calcTotalScore(local?.questions || []),
+            status: local?.status || 'published' as const,
+            createdAt: local?.createdAt || (item.createTime ?? item.create_time ?? ''),
+            createdBy: local?.createdBy || '管理员',
+          }
+        })
+
+      // 保留本地有但 API 还没有的新建作业（临时 ID 数据）
+      const notYetInApi = localList.filter(l => {
+        const isTempId = l.id > 1000000
+        const notMatched = !matchedLocalIds.has(l.id)
+        const notDeleted = !deletedIds.has(l.id)
+        return isTempId && notMatched && notDeleted
+      })
+      console.log('fetchHomeworks - 已匹配:', matchedLocalIds.size, '保留本地:', notYetInApi.length)
+
+      // 合并：临时 ID 数据 + API 返回的数据
+      homeworks.value = [...notYetInApi, ...mappedList]
+      console.log('fetchHomeworks - 最终数据量:', homeworks.value.length)
+
+      saveHomeworks()
     } catch (error) {
       console.warn('获取作业列表失败:', error)
-      homeworks.value = []
+      // 即使 API 失败，也要从本地缓存中过滤已删除的
+      homeworks.value = homeworks.value.filter(h => !deletedIds.has(h.id))
+      if (homeworks.value.length === 0) {
+        homeworks.value = [...MOCK_HOMEWORKS]
+        localStorage.setItem('localHomeworks', JSON.stringify(homeworks.value))
+      }
     }
   }
 
   // ==================== CRUD ====================
   const createHomework = async (data: Omit<Homework, 'id' | 'totalScore' | 'createdAt'>, courseId?: number | string) => {
+    // 先存本地（保留完整题目数据），再调 API
+    const tempId = Date.now()
+    const localHw: Homework = {
+      ...data,
+      id: tempId,
+      totalScore: calcTotalScore(data.questions || []),
+      createdAt: new Date().toLocaleString('zh-CN'),
+    }
+    homeworks.value.unshift(localHw)
+    saveHomeworks()
+
     try {
-      await createHomeworkApi({
+      const numericCourseId = Number(courseId) || 0
+      const className = (data as any).className || ''
+      const apiParams = {
         homeworkTitle: data.title,
         homeworkContent: data.questions.map(q => q.title).join('；') || data.title,
         deadline: data.deadline || '',
-        courseId: courseId || 0,
-        groupName: (data as any).className || undefined,
-      })
+        courseId: numericCourseId,
+        groupName: (className && className !== '全部班级') ? className : undefined,
+      }
+      console.log('创建作业 API 参数:', apiParams)
+      const res: any = await createHomeworkApi(apiParams)
+      console.log('创建作业 API 响应:', res)
+
+      // 从响应中提取真实 ID
+      const backendId = res?.data?.homeworkId ?? res?.data?.homework_id ?? res?.data?.id ?? res?.homeworkId ?? res?.id ?? null
+
+      if (backendId) {
+        // 用真实 ID 更新本地数据
+        const idx = homeworks.value.findIndex(h => h.id === tempId)
+        if (idx !== -1) {
+          homeworks.value[idx] = {
+            ...homeworks.value[idx],
+            id: backendId,
+          }
+          saveHomeworks()
+          console.log('已用真实 ID', backendId, '替换临时 ID', tempId)
+        }
+      }
+
       await fetchHomeworks()
-    } catch (error) {
+    } catch (error: any) {
       console.warn('布置作业接口失败:', error)
+      if (error.response?.data) {
+        console.error('后端错误详情:', error.response.data)
+      }
       throw error
     }
   }
 
   const updateHomework = async (id: number, data: Partial<Omit<Homework, 'id' | 'createdAt'>>, courseId?: number | string) => {
+    // 先更新本地数据保留题目，再调 API
+    const localIdx = homeworks.value.findIndex(h => h.id === id)
+    if (localIdx !== -1) {
+      homeworks.value[localIdx] = {
+        ...homeworks.value[localIdx],
+        ...data,
+        totalScore: data.questions ? calcTotalScore(data.questions) : homeworks.value[localIdx].totalScore,
+      }
+      saveHomeworks()
+    }
+
     try {
+      const numericCourseId = Number(courseId) || 0
+      const className = (data as any).className || ''
       await updateHomeworkApi(id, {
-        homeworkTitle: data.title,
+        homeworkTitle: data.title || homeworks.value[localIdx]?.title || '',
         homeworkContent: data.questions ? JSON.stringify(data.questions) : undefined,
-        deadline: data.deadline,
-        courseId: courseId || 0,
-        groupName: (data as any).className || undefined,
+        deadline: data.deadline || homeworks.value[localIdx]?.deadline,
+        courseId: numericCourseId,
+        groupName: (className && className !== '全部班级') ? className : undefined,
       })
       await fetchHomeworks()
-    } catch (error) {
+    } catch (error: any) {
       console.warn('编辑作业接口失败:', error)
+      if (error.response?.data) {
+        console.error('后端错误详情:', error.response.data)
+      }
       throw error
     }
   }
 
   const deleteHomework = async (id: number) => {
-    try {
-      await deleteHomeworkApi(id)
-    } catch (error) {
-      console.warn('删除作业接口失败:', error)
+    // 临时 ID（Date.now() 生成）说明作业未同步到后端，直接删除本地即可
+    if (id <= 1000000) {
+      try {
+        await deleteHomeworkApi(id)
+      } catch (error) {
+        console.warn('删除作业接口失败:', error)
+      }
     }
+    // 保存删除记录，防止刷新后从 API / 本地缓存重新拉回
+    saveDeletedHomeworkId(id)
     homeworks.value = homeworks.value.filter(h => h.id !== id)
+    saveHomeworks()
   }
 
   const publishHomework = (id: number) => {
@@ -311,6 +448,7 @@ export const useHomeworkStore = defineStore('homework', () => {
     if (hw) {
       hw.status = 'published'
       hw.publishDate = new Date().toLocaleString('zh-CN')
+      saveHomeworks()
     }
   }
 
@@ -318,7 +456,7 @@ export const useHomeworkStore = defineStore('homework', () => {
     const hw = homeworks.value.find(h => h.id === id)
     if (hw) {
       hw.status = 'ended'
-      saveToStorage()
+      saveHomeworks()
     }
   }
 
@@ -345,6 +483,12 @@ export const useHomeworkStore = defineStore('homework', () => {
   const submissions = ref<HomeworkSubmission[]>([])
 
   const fetchSubmissions = async (params?: { groupName?: string; homeworkId?: number | string; courseId?: number | string }) => {
+    // 先加载 localStorage 缓存作为基础
+    const cachedSubs = loadSubmissionsFromStorage()
+    if (cachedSubs.length > 0) {
+      submissions.value = cachedSubs
+    }
+
     try {
       const res: any = await getSubmitList(params)
       const data = res.data || res
@@ -352,6 +496,8 @@ export const useHomeworkStore = defineStore('homework', () => {
       if (list.length > 0) {
         const hwMap = new Map<number, Homework>()
         for (const hw of homeworks.value) { hwMap.set(hw.id, hw) }
+
+        const deletedIds = getDeletedSubmitIds()
 
         const apiSubmissions = list.map((item: any) => {
           const score = item.score ?? null
@@ -364,10 +510,10 @@ export const useHomeworkStore = defineStore('homework', () => {
             courseName: item.courseName || item.course_name || '',
             studentId: item.userId ?? item.user_id ?? 0,
             studentName: item.realName || item.userRealName || item.real_name || item.studentName || item.name || '',
-            studentNo: item.studentNo || item.student_no || String(item.userId ?? ''),
+            studentNo: item.studentNo || item.student_no || item.sno || String(item.userId ?? ''),
             department: 'software' as const,
             className: item.groupName || item.group_name || item.className || item.class_name || '',
-            phone: item.userPhone || item.user_phone || '',
+            phone: item.userPhone || item.user_phone || item.phone || '',
             submitTime: item.submitTime || item.submit_time || item.createTime || '',
             submitContent: item.submitContent || item.submit_content || '',
             submitFile: item.submitFile || item.submit_file || '',
@@ -378,14 +524,17 @@ export const useHomeworkStore = defineStore('homework', () => {
           }
         })
 
+        // 过滤已删除的
+        const filteredApi = apiSubmissions.filter(s => !deletedIds.has(s.id))
+
         // 合并：保留本地已有的批改数据（answers、score、remark 等）
-        const mergedSubmissions = apiSubmissions.map(api => {
+        const mergedSubmissions = filteredApi.map(api => {
           const local = submissions.value.find(s => s.id === api.id)
           if (local) {
             return {
               ...api,
               answers: local.answers.length > 0 ? local.answers : api.answers,
-              totalScore: local.gradingStatus === 'graded' ? local.totalScore : api.totalScore,
+              totalScore: (local.totalScore > 0 || local.remark) ? local.totalScore : api.totalScore,
               remark: local.remark || api.remark,
               gradingStatus: local.gradingStatus === 'graded' ? 'graded' : api.gradingStatus,
               gradedAt: local.gradedAt,
@@ -397,12 +546,16 @@ export const useHomeworkStore = defineStore('homework', () => {
           return api
         })
         submissions.value = mergedSubmissions
+        saveSubmissionsToStorage()
         return
       }
     } catch (error) {
       console.warn('获取提交列表失败:', error)
     }
-    submissions.value = []
+    // API 失败时保留 localStorage 数据
+    if (cachedSubs.length === 0) {
+      submissions.value = []
+    }
   }
 
   const getSubmissionById = (id: number) => submissions.value.find(s => s.id === id)
@@ -427,7 +580,6 @@ export const useHomeworkStore = defineStore('homework', () => {
       }
     } catch {
       // 非 JSON 字符串，当作纯文本答案
-      console.log('📝 submitContent 为非 JSON 文本，长度:', content.length)
       return [{
         questionId: 0,
         questionOrder: 1,
@@ -465,16 +617,26 @@ export const useHomeworkStore = defineStore('homework', () => {
       hwMap.set(hw.id, hw)
     }
 
+    // 先从本地查找（保留本地批改数据）
+    let localSub = submissions.value.find(s => s.id === submitId)
+    // 若内存中没找到，尝试从 localStorage 加载（防止 submissions 被刷新清空）
+    if (!localSub) {
+      const cachedList = loadSubmissionsFromStorage()
+      localSub = cachedList.find(s => s.id === submitId)
+      if (localSub) {
+        // 回填到内存 submissions，使后续操作生效
+        const existsInStore = submissions.value.some(s => s.id === submitId)
+        if (!existsInStore) {
+          submissions.value.push({ ...localSub })
+        }
+      }
+    }
+
     try {
       const res: any = await getSubmitDetail(submitId)
       const d: any = res.data || res
-      console.log('🔍 提交详情 API 原始响应:', JSON.stringify(res))
       if (d) {
-        // 可能 d.data 还有一层嵌套
         const detail = d.data || d
-        // 打印所有 key 方便排查
-        console.log('🔍 详情 data 所有 key:', Object.keys(detail))
-        console.log('🔍 详情 data 完整内容:', JSON.stringify(detail))
 
         // ID 兼容多种字段名
         const detailId = detail.submitId ?? detail.submit_id ?? detail.id ?? submitId
@@ -486,8 +648,26 @@ export const useHomeworkStore = defineStore('homework', () => {
         const rawContent = detail.submitContent ?? detail.submit_content ?? detail.content ?? detail.answerContent ?? detail.answers ?? ''
         const answers = typeof rawContent === 'string' ? parseSubmitContent(rawContent) : parseSubmitContent(JSON.stringify(rawContent))
 
+        // 从本地读取已保存的批改数据
+        // 注意：localSub?.totalScore 可能为 0（有效分数），也可能为 undefined（未保存过）
+        const localScore = localSub ? localSub.totalScore : undefined
+        const localRemark = localSub?.remark
+        const savedRemark = localRemark ?? ''
+        const savedStatus = localSub?.gradingStatus
+
         // 构建返回数据
         // 后端详情实际字段: submitId, userRealName, userPhone, homeworkTitle, courseName, submitContent, submitFile, submitTime, score, remark
+        // 学号：兼容多种字段名 + 本地已保存值，兜底为 '-'
+        const studentNoValue =
+          detail.studentNo ?? detail.student_no ?? detail.userStudentNo ?? detail.user_student_no ??
+          detail.sno ?? detail.studentSn ?? detail.student_id ?? detail.studentId ??
+          localSub?.studentNo ?? localSub?.studentId ??
+          (detail.userId != null ? String(detail.userId) : '')
+        // 手机号：兼容多种字段名 + 本地已保存值
+        const phoneValue =
+          detail.userPhone ?? detail.user_phone ?? detail.phone ?? detail.mobile ??
+          detail.userMobile ?? detail.user_mobile ?? localSub?.phone ?? ''
+
         const result: HomeworkSubmission = {
           id: detailId,
           homeworkId: hwId,
@@ -495,27 +675,27 @@ export const useHomeworkStore = defineStore('homework', () => {
           courseName: detail.courseName || detail.course_name || '',
           studentId: detail.userId ?? detail.user_id ?? 0,
           studentName: detail.userRealName || detail.user_real_name || detail.userName || detail.realName || detail.real_name || detail.name || '',
-          studentNo: detail.studentNo || detail.student_no || String(detail.userId ?? ''),
+          studentNo: (studentNoValue !== '' && studentNoValue != null) ? String(studentNoValue) : '-',
           department: 'software' as const,
-          className: detail.className || detail.class_name || detail.userClass || '',
-          phone: detail.userPhone || detail.user_phone || detail.phone || detail.mobile || '',
+          className: detail.className || detail.class_name || detail.userClass || localSub?.className || '',
+          phone: String(phoneValue || ''),
           submitTime: detail.submitTime || detail.submit_time || detail.createTime || '',
           submitContent: typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent),
           submitFile: detail.submitFile || detail.submit_file || detail.fileUrl || '',
-          answers,
-          totalScore: score ?? 0,
-          remark: detail.remark || detail.comment || '',
-          gradingStatus: (score !== null && score !== undefined ? 'graded' : 'ungraded') as 'graded' | 'ungraded',
+          answers: localSub?.answers?.length ? localSub.answers : answers,
+          // 批改数据优先用本地已保存的值
+          totalScore: (localScore !== undefined && localScore !== null) ? localScore : (score ?? 0),
+          remark: savedRemark || detail.remark || detail.comment || '',
+          gradingStatus: savedStatus || (score !== null && score !== undefined ? 'graded' : 'ungraded') as 'graded' | 'ungraded',
         }
 
-        // 回写 className 到列表行（列表接口不返回班级）
-        if (result.className) {
-          const listRow = submissions.value.find(s => s.id === detailId)
-          if (listRow && !listRow.className) {
-            listRow.className = result.className
-            listRow.studentNo = listRow.studentNo || result.studentNo
-            listRow.phone = listRow.phone || result.phone
-                  }
+        // 回写 className/studentNo/phone 到列表行（列表接口不返回这些字段）
+        const listRow = submissions.value.find(s => s.id === detailId)
+        if (listRow) {
+          listRow.className = result.className || listRow.className
+          listRow.studentNo = result.studentNo || listRow.studentNo
+          listRow.phone = result.phone || listRow.phone
+          saveSubmissionsToStorage()
         }
 
         return result
@@ -523,7 +703,7 @@ export const useHomeworkStore = defineStore('homework', () => {
     } catch (error) {
       console.warn('获取提交详情失败:', error)
     }
-    return getSubmissionById(submitId) || null
+    return localSub || loadSubmissionsFromStorage().find(s => s.id === submitId) || null
   }
 
   /** 保存某道题的批改分数 */
@@ -587,6 +767,29 @@ export const useHomeworkStore = defineStore('homework', () => {
     localStorage.setItem('deletedSubmitIds', JSON.stringify([...ids]))
   }
 
+  // 提交数据 localStorage 持久化
+  const saveSubmissionsToStorage = () => {
+    try {
+      localStorage.setItem('gradingSubmissions', JSON.stringify(submissions.value))
+    } catch { /* ignore */ }
+  }
+  const loadSubmissionsFromStorage = (): HomeworkSubmission[] => {
+    try {
+      const cached = localStorage.getItem('gradingSubmissions')
+      return cached ? JSON.parse(cached) : []
+    } catch { return [] }
+  }
+
+  /** 保存单条提交的批改进度（分数+评语）到本地和 localStorage */
+  const saveGradingProgress = (submitId: number, score: number, remark: string) => {
+    const sub = submissions.value.find(s => s.id === submitId)
+    if (sub) {
+      sub.totalScore = score
+      sub.remark = remark
+      saveSubmissionsToStorage()
+    }
+  }
+
   /** 删除单个提交 */
   const deleteSubmission = async (submitId: number) => {
     try { await deleteSubmit(submitId) } catch { console.warn('删除提交接口失败') }
@@ -621,6 +824,7 @@ export const useHomeworkStore = defineStore('homework', () => {
     saveAnswerGrade,
     completeGrading,
     getUngradedCount,
+    saveGradingProgress,
     deleteSubmission,
     batchDeleteSubmissions,
   }

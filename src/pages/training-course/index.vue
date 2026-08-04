@@ -54,9 +54,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="instructor" label="主讲人" width="100" align="center" />
-        <el-table-column label="日期" min-width="260" align="center">
+        <el-table-column label="日期" min-width="300" align="center">
           <template #default="{ row }">
-            <span>{{ row.startTime }} ~ {{ row.endTime }}</span>
+            <span v-if="row.timeType === 'flexible'">{{ formatFlexibleTime(row.flexibleTime) }}</span>
+            <span v-else>{{ row.startTime }} ~ {{ row.endTime }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="trainingLocation" label="地点" width="140" align="center" show-overflow-tooltip />
@@ -125,20 +126,87 @@
         <el-form-item label="主讲人" required>
           <el-input v-model="form.instructor" placeholder="请输入主讲人" maxlength="30" />
         </el-form-item>
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="开始时间" label-width="90px" required>
-              <el-date-picker v-model="form.startTime" type="datetime" placeholder="选择开始时间"
-                format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm" style="width:100%" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="结束时间" label-width="90px" required>
-              <el-date-picker v-model="form.endTime" type="datetime" placeholder="选择结束时间"
-                format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm" style="width:100%" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+
+        <!-- 时间类型选择 -->
+        <el-form-item label="时间类型" required>
+          <el-radio-group v-model="form.timeType" @change="onTimeTypeChange">
+            <el-radio-button value="fixed">起始时间</el-radio-button>
+            <el-radio-button value="flexible">弹性时间</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
+        <!-- 起始时间模式 -->
+        <template v-if="form.timeType === 'fixed'">
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="开始时间" label-width="90px" required>
+                <el-date-picker v-model="form.startTime" type="datetime" placeholder="选择开始时间"
+                  format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm" style="width:100%" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="结束时间" label-width="90px" required>
+                <el-date-picker v-model="form.endTime" type="datetime" placeholder="选择结束时间"
+                  format="YYYY-MM-DD HH:mm" value-format="YYYY-MM-DD HH:mm" style="width:100%" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </template>
+
+        <!-- 弹性时间模式 -->
+        <template v-else>
+          <el-form-item label="日期范围" required>
+            <el-date-picker
+              v-model="form.flexibleTime.dateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
+              style="width:100%"
+            />
+          </el-form-item>
+          <el-form-item label="上课星期" required>
+            <el-checkbox-group v-model="form.flexibleTime.weekdays">
+              <el-checkbox :label="1">周一</el-checkbox>
+              <el-checkbox :label="2">周二</el-checkbox>
+              <el-checkbox :label="3">周三</el-checkbox>
+              <el-checkbox :label="4">周四</el-checkbox>
+              <el-checkbox :label="5">周五</el-checkbox>
+              <el-checkbox :label="6">周六</el-checkbox>
+              <el-checkbox :label="0">周日</el-checkbox>
+            </el-checkbox-group>
+          </el-form-item>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-form-item label="开始时间" label-width="90px" required>
+                <el-time-picker
+                  v-model="form.flexibleTime.startTime"
+                  placeholder="开始时间"
+                  format="HH:mm"
+                  value-format="HH:mm"
+                  style="width:100%"
+                />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="结束时间" label-width="90px" required>
+                <el-time-picker
+                  v-model="form.flexibleTime.endTime"
+                  placeholder="结束时间"
+                  format="HH:mm"
+                  value-format="HH:mm"
+                  style="width:100%"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-form-item v-if="isFlexTimeValid" label="预览">
+            <span class="flex-time-preview">{{ formatFlexibleTime(form.flexibleTime) }}</span>
+          </el-form-item>
+        </template>
+
         <el-form-item label="地点" required>
           <el-input v-model="form.trainingLocation" placeholder="请输入培训地点" maxlength="60" />
         </el-form-item>
@@ -237,13 +305,18 @@
       <el-table :data="sessionList" border stripe size="small" class="session-table"
         :header-cell-style="{ backgroundColor:'#f8fafc', color:'#475569', fontWeight:'600' }">
         <el-table-column type="index" label="序号" width="55" align="center" />
-        <el-table-column prop="session_name" label="标题" min-width="140" />
-        <el-table-column prop="session_date" label="日期" width="120" align="center" />
-        <el-table-column label="时间" width="160" align="center">
-          <template #default="{ row }">{{ row.start_time }} ~ {{ row.end_time }}</template>
+        <el-table-column label="标题" min-width="180">
+          <template #default="{ row }">{{ row.session_name || row.sessionName || row.title || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="location" label="地点" width="130" align="center" show-overflow-tooltip />
-        <el-table-column prop="instructor" label="主讲人" width="100" align="center" />
+        <el-table-column label="日期" width="120" align="center">
+          <template #default="{ row }">{{ row.session_date || row.sessionDate || row.date || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="时间" width="160" align="center">
+          <template #default="{ row }">{{ row.start_time || row.startTime || '-' }} ~ {{ row.end_time || row.endTime || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="地点" width="150" align="center" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.location || row.place || '-' }}</template>
+        </el-table-column>
       </el-table>
       <div v-if="sessionList.length === 0 && !sessionLoading" class="session-empty">
         <span>暂无课程安排，请添加</span>
@@ -305,25 +378,84 @@ const isEdit = ref(false)
 const editId = ref('')
 const saveLoading = ref(false)
 
+interface FlexibleTimeData {
+  dateRange: [string, string] | []
+  weekdays: number[]
+  startTime: string
+  endTime: string
+}
+
 interface CourseForm {
   name: string; className: string
   description: string; instructor: string
-  startTime: string; endTime: string; trainingLocation: string
+  timeType: 'fixed' | 'flexible'
+  startTime: string; endTime: string
+  flexibleTime: FlexibleTimeData
+  trainingLocation: string
   coverImg: string
 }
+
+const defaultFlexibleTime = (): FlexibleTimeData => ({
+  dateRange: [],
+  weekdays: [],
+  startTime: '',
+  endTime: '',
+})
+
 const form = reactive<CourseForm>({
   name: '', className: '1班',
   description: '', instructor: '',
-  startTime: '', endTime: '', trainingLocation: '',
+  timeType: 'fixed',
+  startTime: '', endTime: '',
+  flexibleTime: defaultFlexibleTime(),
+  trainingLocation: '',
   coverImg: '',
 })
 
 const coverPreview = ref('')
 
+const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+const formatFlexibleTime = (ft?: any) => {
+  if (!ft) return '未设置'
+  const parts: string[] = []
+  if (ft.dateRange && ft.dateRange.length === 2) {
+    const [s, e] = ft.dateRange
+    const sStr = s ? s.substring(0, 7).replace('-', '年') + '月' : ''
+    const eStr = e ? e.substring(0, 7).replace('-', '年') + '月' : ''
+    if (sStr && eStr && sStr === eStr) {
+      parts.push(sStr)
+    } else if (sStr && eStr) {
+      parts.push(`${sStr}-${eStr}`)
+    }
+  }
+  if (ft.weekdays && ft.weekdays.length > 0) {
+    const names = ft.weekdays.sort().map((w: number) => WEEKDAY_NAMES[w]).join('、')
+    parts.push(names)
+  }
+  if (ft.startTime && ft.endTime) {
+    parts.push(`${ft.startTime}-${ft.endTime}`)
+  }
+  return parts.length > 0 ? parts.join(' ') : '未设置'
+}
+
+const isFlexTimeValid = computed(() => {
+  const ft = form.flexibleTime
+  return ft.dateRange?.length === 2 && ft.weekdays.length > 0 && ft.startTime && ft.endTime
+})
+
+const onTimeTypeChange = () => {
+  // 切换时间类型时，可以选择保留数据或清空
+  // 这里保留数据，方便用户来回切换
+}
+
 const resetForm = () => {
   form.name = ''; form.className = '1班'
   form.description = ''; form.instructor = ''
-  form.startTime = ''; form.endTime = ''; form.trainingLocation = ''
+  form.timeType = 'fixed'
+  form.startTime = ''; form.endTime = ''
+  form.flexibleTime = defaultFlexibleTime()
+  form.trainingLocation = ''
   form.coverImg = ''
   coverPreview.value = ''
 }
@@ -339,8 +471,25 @@ const openEditDialog = (row: Course) => {
   form.className = (row as any).className || ''
   form.description = row.description || ''
   form.instructor = row.instructor || ''
-  form.startTime = row.startTime || ''
-  form.endTime = row.endTime || ''
+
+  // 判断时间类型
+  if (row.timeType === 'flexible' && row.flexibleTime) {
+    form.timeType = 'flexible'
+    form.startTime = ''
+    form.endTime = ''
+    form.flexibleTime = {
+      dateRange: [row.flexibleTime.startDate || '', row.flexibleTime.endDate || ''],
+      weekdays: [...row.flexibleTime.weekdays],
+      startTime: row.flexibleTime.startTime || '',
+      endTime: row.flexibleTime.endTime || '',
+    }
+  } else {
+    form.timeType = 'fixed'
+    form.startTime = row.startTime || ''
+    form.endTime = row.endTime || ''
+    form.flexibleTime = defaultFlexibleTime()
+  }
+
   form.trainingLocation = row.trainingLocation || ''
   form.coverImg = (row as any).coverImg || ''
   coverPreview.value = ''
@@ -388,14 +537,44 @@ const validateForm = (): any | null => {
   if (!form.name.trim()) { ElMessage.warning('请输入课程名'); return null }
   if (!form.description.trim()) { ElMessage.warning('请输入课程描述'); return null }
   if (!form.instructor.trim()) { ElMessage.warning('请输入主讲人'); return null }
-  if (!form.startTime) { ElMessage.warning('请选择开始时间'); return null }
-  if (!form.endTime) { ElMessage.warning('请选择结束时间'); return null }
-  if (form.endTime <= form.startTime) { ElMessage.warning('结束时间必须晚于开始时间'); return null }
+
+  // 时间类型验证
+  if (form.timeType === 'fixed') {
+    if (!form.startTime) { ElMessage.warning('请选择开始时间'); return null }
+    if (!form.endTime) { ElMessage.warning('请选择结束时间'); return null }
+    if (form.endTime <= form.startTime) { ElMessage.warning('结束时间必须晚于开始时间'); return null }
+  } else {
+    // 弹性时间验证
+    const ft = form.flexibleTime
+    if (!ft.dateRange || ft.dateRange.length !== 2) { ElMessage.warning('请选择日期范围'); return null }
+    if (!ft.weekdays || ft.weekdays.length === 0) { ElMessage.warning('请至少选择一个上课星期'); return null }
+    if (!ft.startTime) { ElMessage.warning('请选择弹性开始时间'); return null }
+    if (!ft.endTime) { ElMessage.warning('请选择弹性结束时间'); return null }
+    if (ft.endTime <= ft.startTime) { ElMessage.warning('弹性结束时间必须晚于开始时间'); return null }
+  }
+
   if (!form.trainingLocation.trim()) { ElMessage.warning('请输入地点'); return null }
+
+  // 构建弹性时间对象
+  let flexibleTimeObj = undefined
+  if (form.timeType === 'flexible') {
+    const ft = form.flexibleTime
+    flexibleTimeObj = {
+      startDate: ft.dateRange[0] || '',
+      endDate: ft.dateRange[1] || '',
+      weekdays: ft.weekdays,
+      startTime: ft.startTime,
+      endTime: ft.endTime,
+    }
+  }
+
   return {
     name: form.name, className: form.className,
     description: form.description, instructor: form.instructor,
-    startTime: form.startTime, endTime: form.endTime,
+    timeType: form.timeType,
+    startTime: form.startTime || (form.timeType === 'flexible' ? (form.flexibleTime.dateRange?.[0] || '') : ''),
+    endTime: form.endTime || (form.timeType === 'flexible' ? (form.flexibleTime.dateRange?.[1] || '') : ''),
+    flexibleTime: flexibleTimeObj,
     trainingLocation: form.trainingLocation,
     coverImg: form.coverImg || '',
     trainingTargets: [],
@@ -496,6 +675,23 @@ const sessionForm = reactive({
   location: '',
 })
 
+/** 映射 API 课程安排数据，兼容多种命名 */
+const mapSessionList = (rawList: any[]): ApiSessionItem[] => {
+  if (!Array.isArray(rawList)) return []
+  return rawList.map((item: any) => ({
+    session_id: item.session_id ?? item.sessionId ?? item.id ?? 0,
+    course_id: item.course_id ?? item.courseId ?? 0,
+    session_name: item.session_name ?? item.sessionName ?? item.title ?? '',
+    session_date: item.session_date ?? item.sessionDate ?? item.date ?? '',
+    start_time: item.start_time ?? item.startTime ?? '',
+    end_time: item.end_time ?? item.endTime ?? '',
+    location: item.location ?? item.place ?? '',
+    instructor: item.instructor ?? item.teacher ?? item.lecturer ?? '',
+    description: item.description ?? item.desc ?? '',
+    create_time: item.create_time ?? item.createTime ?? '',
+  }))
+}
+
 const openSessionDialog = async (row: Course) => {
   sessionCourseId.value = row.id
   sessionCourseName.value = row.name
@@ -512,7 +708,10 @@ const openSessionDialog = async (row: Course) => {
   sessionLoading.value = true
   try {
     const res: any = await getSessionList({ courseId: Number(row.id) })
-    sessionList.value = res.data?.list || res.list || []
+    const rawList = res.data?.list || res.list || res.data || []
+    console.log('课程安排原始数据:', rawList)
+    sessionList.value = mapSessionList(rawList)
+    console.log('课程安排映射后:', sessionList.value)
   } catch {
     console.warn('获取课程安排列表失败')
     sessionList.value = []
@@ -541,9 +740,10 @@ const handleCreateSession = async () => {
       location: sessionForm.location || undefined,
     })
     ElMessage.success('已添加课程安排')
-    // 重新加载列表
+    // 重新加载列表（带字段映射）
     const res: any = await getSessionList({ courseId: Number(sessionCourseId.value) })
-    sessionList.value = res.data?.list || res.list || []
+    const rawList = res.data?.list || res.list || res.data || []
+    sessionList.value = mapSessionList(rawList)
     // 重置表单
     sessionForm.title = ''; sessionForm.sessionDate = ''
     sessionForm.startTime = ''; sessionForm.endTime = ''; sessionForm.location = ''
@@ -606,4 +806,6 @@ onMounted(() => { store.fetchCourses() })
 .session-add-bar .el-form-item { margin-bottom:0; }
 .session-table { margin-bottom:12px; }
 .session-empty { text-align:center; padding:40px 0; color:#909399; font-size:14px; }
+
+.flex-time-preview { display:inline-block; padding:4px 12px; background:#e1f3d8; color:#67c23a; border-radius:4px; font-size:13px; font-weight:500; }
 </style>

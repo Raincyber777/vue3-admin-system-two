@@ -51,7 +51,11 @@
         :header-cell-style="{ backgroundColor:'#f8fafc', color:'#475569', fontWeight:'600' }"
         @selection-change="onSelectionChange">
         <el-table-column type="selection" width="45" />
-        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column label="序号" width="60" align="center">
+          <template #default="{ $index }">
+            {{ (currentPage - 1) * pageSize + $index + 1 }}
+          </template>
+        </el-table-column>
         <el-table-column prop="homeworkTitle" label="作业标题" min-width="180" show-overflow-tooltip />
         <el-table-column prop="studentName" label="姓名" width="100" align="center" />
         <el-table-column prop="className" label="所属班级" width="110" align="center" />
@@ -111,7 +115,6 @@
         <div class="submission-header">
           <span>姓名：<strong>{{ currentSub.studentName }}</strong></span>
           <span>学号：<strong>{{ currentSub.studentNo || '-' }}</strong></span>
-          <span>手机号：<strong>{{ currentSub.phone || '-' }}</strong></span>
           <span>提交时间：<strong>{{ currentSub.submitTime }}</strong></span>
         </div>
 
@@ -182,7 +185,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { EditPen, View, Folder, CircleCheck, Link, Delete } from '@element-plus/icons-vue'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
@@ -227,8 +230,20 @@ const currentPageData = computed(() => {
   return filteredList.value.slice(start, start + pageSize.value)
 })
 
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredList.value.length / pageSize.value)))
+
 const handleSizeChange = () => { currentPage.value = 1 }
 const handleCurrentChange = (p: number) => { currentPage.value = p }
+
+const ensureValidPage = () => {
+  if (currentPage.value > totalPages.value) {
+    currentPage.value = totalPages.value
+  }
+}
+
+watch(filteredList, () => {
+  ensureValidPage()
+})
 
 // ==================== 批改弹窗 ====================
 const dialogVisible = ref(false)
@@ -262,6 +277,11 @@ const handleSaveProgress = async () => {
     sub.remark = gradeForm.remark
     sub.gradingStatus = 'ungraded'
   }
+  // 同步更新当前展示对象，保持 UI 一致
+  currentSub.value.totalScore = gradeForm.score
+  currentSub.value.remark = gradeForm.remark
+  // 调用 store 持久化到 localStorage
+  store.saveGradingProgress(currentSub.value!.id, gradeForm.score, gradeForm.remark)
   saveLoading.value = false
   dialogVisible.value = false
   ElMessage.success('已保存批改进度')
@@ -313,6 +333,7 @@ const handleDelete = async (row: HomeworkSubmission) => {
     )
   } catch { return }
   await store.deleteSubmission(row.id)
+  ensureValidPage()
   ElMessage.success('已删除')
 }
 
@@ -326,6 +347,7 @@ const handleBatchDelete = async () => {
   } catch { return }
   await store.batchDeleteSubmissions(selectedIds.value)
   selectedIds.value = []
+  ensureValidPage()
   ElMessage.success('批量删除完成')
 }
 

@@ -16,6 +16,18 @@ export interface CreateCourseParams {
   department?: string
   instructor?: string
   trainingLocation?: string
+  /** 时间类型：fixed=起始时间，flexible=弹性时间 */
+  timeType?: 'fixed' | 'flexible'
+  /** 弹性时间配置 */
+  flexibleTime?: {
+    startDate: string
+    endDate: string
+    weekdays: number[]
+    startTime: string
+    endTime: string
+  }
+  /** 弹性时间的文本描述，如 "2026年8月-9月 每周一三五" */
+  courseDate?: string
 }
 
 /** 上传封面响应 */
@@ -55,7 +67,7 @@ export interface CourseListParams {
   status?: number
 }
 
-/** 后端课程项 */
+/** 课程列表项（后端返回） */
 export interface ApiCourseItem {
   course_id: number
   course_name: string
@@ -67,6 +79,16 @@ export interface ApiCourseItem {
   status: number
   sign_count?: number
   create_time?: string
+  /** 弹性时间描述文本，如 "2026年8月-9月 每周一三五" */
+  course_date?: string
+  courseDate?: string
+  /** 上课地点 */
+  location?: string
+  /** 主讲人 */
+  instructor?: string
+  /** 班级 */
+  class_name?: string
+  className?: string
 }
 
 /** 课程列表响应 */

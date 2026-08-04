@@ -66,19 +66,27 @@ const mapSession = (item: any): SignInSession => ({
 })
 
 const mapRecord = (item: any): SignInRecord => {
-  const statusMap: Record<number, 'signed' | 'late' | 'absent'> = { 0: 'signed', 1: 'late', 2: 'absent' }
-  return {
-    id: item.record_id ?? item.recordId ?? item.id ?? 0,
-    signinId: item.checkin_id ?? item.checkinId ?? 0,
-    userId: item.user_id ?? item.userId ?? 0,
-    studentName: item.real_name || item.name || item.studentName || item.student_name || '',
-    studentNo: item.student_no || item.studentNo || item.studentId || '',
-    department: item.department || '',
-    className: item.class_name || item.className || '',
-    signinTime: item.checkin_time || item.checkinTime || item.signTime || '',
-    status: statusMap[item.status] || 'signed',
-    method: item.method || item.sign_method || '',
+  const statusMap: Record<number | string, 'signed' | 'late' | 'absent'> = {
+    0: 'signed', 1: 'late', 2: 'absent',
+    'signed': 'signed', 'late': 'late', 'absent': 'absent',
+    '正常': 'signed', '迟到': 'late', '缺席': 'absent',
   }
+
+  const record: SignInRecord = {
+    id: item.record_id ?? item.recordId ?? item.id ?? 0,
+    signinId: item.checkin_id ?? item.checkinId ?? item.signinId ?? 0,
+    userId: item.user_id ?? item.userId ?? item.student_id ?? item.studentId ?? 0,
+    studentName: item.real_name || item.name || item.userName || item.username || item.studentName || item.student_name || item.nickname || '',
+    studentNo: item.student_no || item.studentNo || item.sno || item.studentId || item.account || '',
+    department: item.department || item.dept_name || item.deptName || '',
+    className: item.class_name || item.className || item.cls_name || item.className || '',
+    signinTime: item.checkin_time || item.checkinTime || item.signTime || item.createTime || item.create_time || item.created_at || '',
+    status: statusMap[item.status] || statusMap[String(item.status)] || 'signed',
+    method: item.method || item.sign_method || item.signMethod || item.type || '',
+  }
+
+  console.log('映射单条签到明细:', { 原始: item, 映射后: record })
+  return record
 }
 
 const MOCK_SESSIONS: SignInSession[] = [
@@ -208,8 +216,25 @@ export const useSignInStore = defineStore('signin', () => {
   const fetchDetail = async (signinId: number): Promise<SignInRecord[]> => {
     try {
       const res: any = await getSignInDetail(signinId, { pageSize: 500 })
-      const list = res.data?.list || res.list || []
-      if (list.length > 0) return list.map(mapRecord)
+      console.log('签到明细原始响应:', res)
+
+      // 尝试多种可能的响应结构
+      let list: any[] = []
+      if (Array.isArray(res)) {
+        list = res
+      } else if (res.data) {
+        // 可能是 {code, data: {list: [...]}} 或 {data: [...]}
+        list = Array.isArray(res.data) ? res.data : (res.data.list || res.data.records || [])
+      } else if (res.list) {
+        list = res.list
+      } else if (res.records) {
+        list = res.records
+      }
+
+      console.log('签到明细解析后 list:', list)
+      if (list.length > 0) {
+        return list.map(mapRecord)
+      }
     } catch (error) {
       console.warn('获取签到明细失败:', error)
     }

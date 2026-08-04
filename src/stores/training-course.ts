@@ -31,6 +31,16 @@ export interface Course {
   currentParticipants: number
   startTime: string
   endTime: string
+  /** 时间类型：fixed=起始时间，flexible=弹性时间 */
+  timeType?: 'fixed' | 'flexible'
+  /** 弹性时间配置 */
+  flexibleTime?: {
+    startDate: string
+    endDate: string
+    weekdays: number[]  // 0=周日, 1=周一, ..., 6=周六
+    startTime: string
+    endTime: string
+  }
   trainingLocation: string
   instructor: string
   instructorId?: string
@@ -132,6 +142,30 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     return Date.now().toString(36) + Math.random().toString(36).substring(2)
   }
 
+  // 格式化弹性时间为 API 友好的文本描述
+  const WEEKDAY_NAMES = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  const formatFlexibleTimeForApi = (ft?: any): string => {
+    if (!ft) return ''
+    const parts: string[] = []
+    if (ft.startDate && ft.endDate) {
+      const s = ft.startDate
+      const e = ft.endDate
+      if (s.substring(0, 7) === e.substring(0, 7)) {
+        parts.push(`${s.substring(0, 4)}年${s.substring(5, 7)}月`)
+      } else {
+        parts.push(`${s.substring(0, 4)}年${s.substring(5, 7)}月-${e.substring(5, 7)}月`)
+      }
+    }
+    if (ft.weekdays && ft.weekdays.length > 0) {
+      const names = ft.weekdays.sort().map((w: number) => WEEKDAY_NAMES[w]).join('、')
+      parts.push(`每周${names}`)
+    }
+    if (ft.startTime && ft.endTime) {
+      parts.push(`${ft.startTime}-${ft.endTime}`)
+    }
+    return parts.join(' ')
+  }
+
   const getStatusText = (status: CourseStatus) => STATUS_TEXT[status] || status
 
   const getStatusType = (status: CourseStatus) => {
@@ -206,8 +240,15 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
             c.status = apiItem.status === 1 ? 'published' as CourseStatus : 'draft' as CourseStatus
             c.description = apiItem.course_desc || c.description
             c.coverImg = apiItem.cover_img || c.coverImg
-            c.startTime = apiItem.start_time || c.startTime
-            c.endTime = apiItem.end_time || c.endTime
+            // 弹性时间处理：如果 API 返回了 courseDate，尝试解析弹性时间
+            if (apiItem.course_date || apiItem.courseDate) {
+              c.timeType = 'flexible'
+              // 保留已有的 flexibleTime（本地数据优先）
+            } else if (c.timeType !== 'flexible') {
+              c.timeType = 'fixed'
+              c.startTime = apiItem.start_time || c.startTime
+              c.endTime = apiItem.end_time || c.endTime
+            }
             c.maxParticipants = apiItem.max_sign || c.maxParticipants
             c.currentParticipants = apiItem.sign_count || 0
             c.createdAt = apiItem.create_time || c.createdAt
@@ -225,6 +266,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
           for (const item of remaining) {
             // 跳过已被用户主动删除的课程
             if (deleted.includes(item.course_name)) continue
+            const hasFlexibleTime = item.course_date || item.courseDate
             courses.value.push({
               id: String(item.course_id),
               name: item.course_name,
@@ -233,10 +275,18 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
               trainingTargets: [],
               maxParticipants: item.max_sign || 50,
               currentParticipants: item.sign_count || 0,
+              timeType: hasFlexibleTime ? 'flexible' : 'fixed',
               startTime: item.start_time || '待定',
               endTime: item.end_time || '待定',
-              trainingLocation: '待定',
-              instructor: '待定',
+              flexibleTime: hasFlexibleTime ? {
+                startDate: item.start_time || '',
+                endDate: item.end_time || '',
+                weekdays: [],
+                startTime: '',
+                endTime: '',
+              } : undefined,
+              trainingLocation: item.location || '待定',
+              instructor: item.instructor || '待定',
               prerequisites: '',
               courseTags: [],
               description: item.course_desc || '',
@@ -279,6 +329,9 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
         startTime: data.startTime || undefined,
         endTime: data.endTime || undefined,
         maxSign: data.maxParticipants || 50,
+        timeType: data.timeType,
+        flexibleTime: data.flexibleTime,
+        courseDate: data.timeType === 'flexible' ? formatFlexibleTimeForApi(data.flexibleTime) : undefined,
       })
 
       // 从创建响应获取后端 ID（兼容 courseId / course_id / id）
@@ -321,6 +374,9 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
         startTime: data.startTime || undefined,
         endTime: data.endTime || undefined,
         maxSign: data.maxParticipants,
+        timeType: data.timeType,
+        flexibleTime: data.flexibleTime,
+        courseDate: data.timeType === 'flexible' ? formatFlexibleTimeForApi(data.flexibleTime) : undefined,
       })
 
       // 同步更新本地数据
@@ -434,29 +490,32 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = null
 
     try {
-      if (useApi.value) {
-        // 通过更新接口设置结束状态
-        await updateCourseApi(id, { is_published: false } as any)
-        await fetchCourses()
-      } else {
-        const course = courses.value.find(c => c.id === id)
-        if (!course) return false
+      const course = courses.value.find(c => c.id === id)
+      if (!course) return false
 
-        if (course.status !== 'published') {
-          ElMessage.warning('只能结束已发布的课程')
-          return false
-        }
-
-        const index = courses.value.findIndex(c => c.id === id)
-        const now = new Date().toLocaleString('zh-CN')
-        courses.value[index] = {
-          ...courses.value[index],
-          status: 'ended',
-          registrationStatus: 'ended',
-          updatedAt: now
-        }
-        saveToStorage()
+      if (course.status !== 'published') {
+        ElMessage.warning('只能结束已发布的课程')
+        return false
       }
+
+      // 尝试调用 API 下架
+      const numericId = /^\d+$/.test(id) ? id : null
+      if (numericId) {
+        try { await updateCourseStatus(id, 0) } catch (err) {
+          console.warn('结束课程 API 失败:', err)
+        }
+      }
+
+      // 更新本地状态
+      const index = courses.value.findIndex(c => c.id === id)
+      const now = new Date().toLocaleString('zh-CN')
+      courses.value[index] = {
+        ...courses.value[index],
+        status: 'ended',
+        registrationStatus: 'ended',
+        updatedAt: now
+      }
+      saveToStorage()
       return true
     } catch (err: any) {
       console.error('结束课程失败:', err)
@@ -478,25 +537,30 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       const res: any = await getCourseDetail(id)
       const d: CourseDetail = res.data || res
       if (d) {
+        // 先从本地缓存查找（保留弹性时间等本地数据）
+        const local = getCourseById(id)
+        const hasFlexibleTime = (d as any).course_date || (d as any).courseDate
         return {
           id: String(d.course_id),
           name: d.course_name,
           status: d.status === 1 ? 'published' : 'draft',
           registrationStatus: 'ongoing',
-          trainingTargets: [],
+          trainingTargets: local?.trainingTargets || [],
           maxParticipants: d.max_sign || 50,
           currentParticipants: d.sign_count || 0,
-          startTime: d.start_time || '待定',
-          endTime: d.end_time || '待定',
-          trainingLocation: '待定',
-          instructor: '待定',
-          prerequisites: '',
-          courseTags: [],
-          description: d.course_desc || '',
-          chapters: [],
-          linkedAttendance: false,
-          linkedScore: false,
-          linkedAnnouncement: false,
+          timeType: hasFlexibleTime ? 'flexible' : (local?.timeType || 'fixed'),
+          startTime: d.start_time || local?.startTime || '待定',
+          endTime: d.end_time || local?.endTime || '待定',
+          flexibleTime: local?.flexibleTime,
+          trainingLocation: local?.trainingLocation || '待定',
+          instructor: local?.instructor || '待定',
+          prerequisites: local?.prerequisites || '',
+          courseTags: local?.courseTags || [],
+          description: d.course_desc || local?.description || '',
+          chapters: local?.chapters || [],
+          linkedAttendance: local?.linkedAttendance ?? false,
+          linkedScore: local?.linkedScore ?? false,
+          linkedAnnouncement: local?.linkedAnnouncement ?? false,
           createdAt: d.create_time || '',
           updatedAt: d.create_time || '',
           publishedAt: d.status === 1 ? d.create_time : undefined,

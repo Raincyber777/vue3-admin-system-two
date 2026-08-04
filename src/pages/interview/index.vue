@@ -48,7 +48,11 @@
     <div class="table-card">
       <el-table :data="currentPageData" border stripe class="homework-table"
         :header-cell-style="{ backgroundColor:'#f8fafc', color:'#475569', fontWeight:'600' }">
-        <el-table-column type="index" label="序号" width="60" align="center" />
+        <el-table-column label="序号" width="60" align="center">
+          <template #default="{ $index }">
+            {{ (currentPage - 1) * pageSize + $index + 1 }}
+          </template>
+        </el-table-column>
         <el-table-column prop="title" label="作业标题" min-width="160" show-overflow-tooltip />
         <el-table-column label="班级" width="100" align="center">
           <template #default="{ row }">{{ row.className || '全部班级' }}</template>
@@ -57,7 +61,6 @@
         <el-table-column prop="deadline" label="截止日期" width="150" align="center" />
         <el-table-column label="操作" width="240" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="openPreview(row)"><el-icon><View /></el-icon>预览</el-button>
             <el-button type="primary" link @click="openEditDialog(row)"><el-icon><Edit /></el-icon>编辑</el-button>
             <template v-if="row.status === 'draft'">
               <el-button type="success" link @click="handleTablePublish(row)"><el-icon><CircleCheck /></el-icon>发布</el-button>
@@ -117,7 +120,7 @@
               <el-col :span="8">
                 <el-form-item label="班级" label-width="60px" required>
                   <el-select v-model="form.className" style="width:100%" placeholder="请选择班级">
-                    <el-option label="全部班级" value="" />
+                    <el-option label="全部班级" value="全部班级" />
                     <el-option label="一班" value="一班" />
                     <el-option label="二班" value="二班" />
                     <el-option label="三班" value="三班" />
@@ -149,7 +152,7 @@
           </div>
 
           <div v-if="form.questions.length === 0" class="empty-questions">
-            <el-empty description="暂无题目，点击上方按钮添加" :image-size="80" />
+            <el-empty description="暂无题目，点击下方按钮添加" :image-size="80" />
           </div>
 
           <div v-for="(q, qi) in form.questions" :key="q._key" class="question-card" :class="{ collapsed: q._collapsed }">
@@ -241,7 +244,7 @@
 
           <!-- 添加题目按钮（列表末尾） -->
           <div class="add-question-bottom">
-            <el-button size="small" @click="addQuestion">
+            <el-button type="primary" @click="addQuestion">
               <el-icon><Plus /></el-icon> 添加题目
             </el-button>
           </div>
@@ -253,9 +256,6 @@
         </div>
         <div class="dialog-footer-right">
           <template v-if="!isEditing">
-            <el-button @click="handleSaveDraft" :loading="saveLoading">
-              <el-icon><Folder /></el-icon> 存为草稿
-            </el-button>
             <el-button type="primary" @click="handlePublishClick" :loading="saveLoading">
               发布作业
             </el-button>
@@ -285,65 +285,14 @@
       </template>
     </el-dialog>
 
-    <!-- ======== 预览弹窗（试卷样式） ======== -->
-    <el-dialog v-model="previewVisible" :title="previewHw?.title || '作业预览'"
-      width="750px" destroy-on-close top="3vh" class="preview-dialog">
-      <div v-if="previewHw" class="paper">
-        <div class="paper-header">
-          <div class="paper-info">
-            <span>总分：<strong>{{ previewHw.totalScore }}</strong>分</span>
-            <span>题数：<strong>{{ previewHw.questions.length }}</strong>道</span>
-            <span>截止：<strong>{{ previewHw.deadline }}</strong></span>
-          </div>
-        </div>
-        <div v-for="q in previewHw.questions" :key="q.id" class="paper-question">
-          <div class="pq-title">
-            <el-tag size="small" :type="q.type === 'judge' ? 'warning' : q.type === 'choice' ? '' : 'success'">
-              {{ typeLabel(q.type) }}
-            </el-tag>
-            <span class="pq-num">第{{ q.order }}题</span>
-            <span class="pq-score">（{{ q.score }}分）</span>
-          </div>
-          <div class="pq-content">{{ q.title }}</div>
-          <!-- 选择题选项 -->
-          <div v-if="q.type === 'choice' && q.options" class="pq-options">
-            <div v-for="(opt, oi) in q.options" :key="oi" class="pq-opt">
-              <el-checkbox :model-value="false" disabled />
-              <span class="pq-opt-label">{{ optionLabel(oi) }}.</span>
-              <span>{{ opt.replace(/^[A-F]\.\s*/, '') }}</span>
-            </div>
-          </div>
-          <!-- 判断题选项 -->
-          <div v-if="q.type === 'judge'" class="pq-options">
-            <div class="pq-opt"><el-radio disabled /> 正确</div>
-            <div class="pq-opt"><el-radio disabled /> 错误</div>
-          </div>
-          <!-- 解答题区域 -->
-          <div v-if="q.type === 'essay'" class="pq-essay-area">
-            <div class="essay-placeholder">（学生在此作答）</div>
-          </div>
-          <!-- 正确答案（管理员可见） -->
-          <div class="pq-answer">
-            <span class="answer-label">正确答案：</span>
-            <template v-if="q.type === 'choice'">
-              {{ q.answer.split(',').filter(Boolean).join('、') }}
-            </template>
-            <template v-else>{{ q.answer }}</template>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="previewVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  Notebook, Plus, View, Edit, Delete, CircleCheck, Top, Bottom, Close, Folder, WarningFilled
+  Notebook, Plus, Edit, Delete, CircleCheck, Top, Bottom, Close, WarningFilled
 } from '@element-plus/icons-vue'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
 import { useHomeworkStore } from '@/stores/homework'
@@ -373,7 +322,7 @@ const filterClass = ref('all')
 const filteredList = computed(() => {
   const list = [...store.homeworks]
   if (filterClass.value !== 'all') {
-    return list.filter(h => !h.className || h.className === filterClass.value)
+    return list.filter(h => h.className === filterClass.value || h.className === '全部班级' || !h.className)
   }
   return list
 })
@@ -389,8 +338,20 @@ const currentPageData = computed(() => {
   return filteredList.value.slice(start, start + pageSize.value)
 })
 
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredList.value.length / pageSize.value)))
+
 const handleSizeChange = () => { currentPage.value = 1 }
 const handleCurrentChange = (page: number) => { currentPage.value = page }
+
+const ensureValidPage = () => {
+  if (currentPage.value > totalPages.value) {
+    currentPage.value = totalPages.value
+  }
+}
+
+watch(filteredList, () => {
+  ensureValidPage()
+})
 
 const stats = computed(() => {
   const list = store.homeworks
@@ -451,7 +412,7 @@ const publishConfirmVisible = ref(false)
 const publishTarget = ref<'form' | Homework | null>(null)
 
 const form = reactive<HwForm>({
-  title: '', courseId: '', className: '', publishDate: '', deadline: '',
+  title: '', courseId: '', className: '全部班级', publishDate: '', deadline: '',
   questions: [],
 })
 
@@ -460,7 +421,7 @@ const calcTotal = computed(() => form.questions.reduce((s, q) => s + (q.score ||
 const resetForm = () => {
   form.title = ''
   form.courseId = ''
-  form.className = ''
+  form.className = '全部班级'
   form.publishDate = ''
   form.deadline = ''
   form.questions = []
@@ -478,10 +439,10 @@ const openEditDialog = async (hw: Homework) => {
   editingId.value = hw.id
   form.title = hw.title
   form.courseId = hw.courseId ?? ''
+  form.className = hw.className || ''
   form.publishDate = hw.publishDate
   form.deadline = hw.deadline
   form.questions = hw.questions.map(q => makeQForm(q))
-  // 先加载课程列表，再打开弹窗
   await loadCourses()
   dialogVisible.value = true
 }
@@ -563,7 +524,7 @@ const buildQuestions = (): Question[] | null => {
 }
 
 /** 实际执行保存 */
-const doSave = (status: 'draft' | 'published') => {
+const doSave = async (status: 'draft' | 'published') => {
   const questions = buildQuestions()
   if (!questions) return
   if (form.courseId === 0 || form.courseId === '' || form.courseId == null) { ElMessage.warning('请选择关联课程'); return }
@@ -575,34 +536,40 @@ const doSave = (status: 'draft' | 'published') => {
   }
 
   saveLoading.value = true
-  if (isEditing.value) {
-    store.updateHomework(editingId.value, {
-      title: form.title,
-      publishDate: form.publishDate,
-      deadline: form.deadline,
-      status,
-      questions,
-    }, form.courseId)
-    ElMessage.success(status === 'published' ? '作业已更新并发布' : '作业已保存为草稿')
-  } else {
-    store.createHomework({
-      title: form.title,
-      publishDate: status === 'published'
-        ? (form.publishDate || new Date().toLocaleString('zh-CN'))
-        : (form.publishDate || ''),
-      deadline: form.deadline,
-      status,
-      questions,
-    }, form.courseId)
-    ElMessage.success(status === 'published' ? '作业已发布' : '作业已存为草稿')
+  try {
+    if (isEditing.value) {
+      await store.updateHomework(editingId.value, {
+        title: form.title,
+        publishDate: form.publishDate,
+        deadline: form.deadline,
+        status,
+        questions,
+        className: form.className,
+      }, form.courseId)
+      ElMessage.success(status === 'published' ? '作业已更新并发布' : '作业已保存为草稿')
+    } else {
+      await store.createHomework({
+        title: form.title,
+        publishDate: status === 'published'
+          ? (form.publishDate || new Date().toLocaleString('zh-CN'))
+          : (form.publishDate || ''),
+        deadline: form.deadline,
+        status,
+        questions,
+        className: form.className,
+      }, form.courseId)
+      ElMessage.success(status === 'published' ? '作业已发布' : '作业已存为草稿')
+    }
+    currentPage.value = 1
+  } catch (error) {
+    console.error('保存失败:', error)
+    ElMessage.error('保存失败，请重试')
+    return
+  } finally {
+    saveLoading.value = false
   }
-  saveLoading.value = false
   dialogVisible.value = false
   publishConfirmVisible.value = false
-}
-
-const handleSaveDraft = () => {
-  doSave('draft')
 }
 
 const handlePublishClick = () => {
@@ -623,14 +590,14 @@ const handleTablePublish = (hw: Homework) => {
   publishConfirmVisible.value = true
 }
 
-const handleConfirmPublish = () => {
+const handleConfirmPublish = async () => {
   publishConfirmVisible.value = false
   if (publishTarget.value === 'form') {
-    doSave('published')
+    await doSave('published')
   } else if (publishTarget.value && typeof publishTarget.value === 'object') {
     // 从列表直接发布草稿
     const hw = publishTarget.value as Homework
-    store.updateHomework(hw.id, {
+    await store.updateHomework(hw.id, {
       status: 'published',
       publishDate: hw.publishDate || new Date().toLocaleString('zh-CN'),
     })
@@ -640,7 +607,7 @@ const handleConfirmPublish = () => {
 }
 
 /** 编辑模式：只保存当前编辑进度，不改变发布状态 */
-const handleEditSave = () => {
+const handleEditSave = async () => {
   const questions = buildQuestions()
   if (!questions) return
   if (form.publishDate && form.deadline && form.deadline <= form.publishDate) {
@@ -649,30 +616,32 @@ const handleEditSave = () => {
   }
 
   saveLoading.value = true
-  store.updateHomework(editingId.value, {
-    title: form.title,
-    publishDate: form.publishDate,
-    deadline: form.deadline,
-    questions,
-  }, form.courseId)
-  saveLoading.value = false
-  dialogVisible.value = false
-  ElMessage.success('已保存编辑进度')
+  try {
+    await store.updateHomework(editingId.value, {
+      title: form.title,
+      publishDate: form.publishDate,
+      deadline: form.deadline,
+      questions,
+      className: form.className,
+    }, form.courseId)
+    dialogVisible.value = false
+    ensureValidPage()
+    ElMessage.success('已保存编辑进度')
+  } catch (error) {
+    console.error('保存失败:', error)
+    ElMessage.error('保存失败，请重试')
+  } finally {
+    saveLoading.value = false
+  }
 }
 
-const handleDelete = (id: number) => {
-  store.deleteHomework(id)
+const handleDelete = async (id: number) => {
+  await store.deleteHomework(id)
+  ensureValidPage()
   ElMessage.success('作业已删除')
 }
 
-// ==================== 预览 ====================
-const previewVisible = ref(false)
-const previewHw = ref<Homework | null>(null)
 
-const openPreview = (hw: Homework) => {
-  previewHw.value = hw
-  previewVisible.value = true
-}
 
 onMounted(() => {
   store.fetchHomeworks()
