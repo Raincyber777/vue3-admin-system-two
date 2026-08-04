@@ -132,15 +132,15 @@ const fetchList = async () => {
   loading.value = true
   try {
     if (filterClass.value === 'all') {
-      // 全部班级：并发请求所有 groupId 后合并
-      const results = await Promise.allSettled(
-        GROUP_IDS.map(id => getClassList(String(id)))
-      )
       const all: ClassListItem[] = []
-      for (const r of results) {
-        if (r.status === 'fulfilled') {
-          const data = (r.value as any).data || r.value
+      for (const id of GROUP_IDS) {
+        try {
+          const res = await getClassList(String(id))
+          const data = (res as any).data || res
+          console.log(`📋 groupId=${id} 返回:`, data)
           all.push(...(data.list || []))
+        } catch (e) {
+          console.warn(`📋 groupId=${id} 请求失败:`, e)
         }
       }
       list.value = all
@@ -148,10 +148,11 @@ const fetchList = async () => {
       const gid = classGroupMap[filterClass.value] || '1'
       const res = await getClassList(gid)
       const data = (res as any).data || res
+      console.log('📋 培训名单返回:', data)
       list.value = data.list || []
     }
-  } catch {
-    console.warn('获取培训名单失败')
+  } catch (e) {
+    console.warn('获取培训名单失败:', e)
     list.value = []
   } finally {
     loading.value = false

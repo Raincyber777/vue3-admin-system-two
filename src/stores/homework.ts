@@ -272,7 +272,7 @@ export const useHomeworkStore = defineStore('homework', () => {
         homeworkContent: data.questions.map(q => q.title).join('；') || data.title,
         deadline: data.deadline || '',
         courseId: courseId || 0,
-        groupName: (data as any).className || '',
+        groupName: (data as any).className || undefined,
       })
       await fetchHomeworks()
     } catch (error) {
@@ -288,7 +288,7 @@ export const useHomeworkStore = defineStore('homework', () => {
         homeworkContent: data.questions ? JSON.stringify(data.questions) : undefined,
         deadline: data.deadline,
         courseId: courseId || 0,
-        groupName: (data as any).className || '',
+        groupName: (data as any).className || undefined,
       })
       await fetchHomeworks()
     } catch (error) {
