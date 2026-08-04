@@ -207,8 +207,13 @@ const handleChangePassword = async () => {
       oldPassword: changePasswordForm.oldPassword,
       newPassword: changePasswordForm.newPassword,
     })
-    ElMessage.success('密码修改成功')
+    ElMessage.success('密码修改成功，即将跳转登录页')
     showChangePasswordDialog.value = false
+    // 修改密码后 token 通常会被后端失效，主动退出并跳转登录
+    setTimeout(() => {
+      authStore.logout()
+      router.push('/login')
+    }, 1500)
   } catch (error: any) {
     const msg = error?.response?.data?.message || error?.response?.data?.msg || error?.message || '修改密码失败，请重试'
     console.warn('修改密码失败:', error)

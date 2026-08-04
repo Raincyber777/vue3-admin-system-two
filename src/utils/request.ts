@@ -44,10 +44,14 @@ request.interceptors.response.use(
     if (error.response) {
       const { status } = error.response
       if (status === 401) {
-        ElMessage.error('登录已过期，请重新登录')
-        localStorage.removeItem('token')
-        localStorage.removeItem('userInfo')
-        window.location.href = '/login'
+        // 修改密码接口的 401 是"原密码错误"，不要跳登录，交给调用方处理
+        const isUpdatePwd = error.config?.url?.includes('/auth/update_pwd')
+        if (!isUpdatePwd) {
+          ElMessage.error('登录已过期，请重新登录')
+          localStorage.removeItem('token')
+          localStorage.removeItem('userInfo')
+          window.location.href = '/login'
+        }
       }
     } else if (error.code === 'ECONNABORTED') {
       ElMessage.error('请求超时，请检查网络连接')

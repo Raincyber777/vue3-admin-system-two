@@ -46,14 +46,11 @@ export const getUserProfile = (): Promise<AxiosResponse<{ code: number; data: Us
   return request.get('/v1/admin/auth/info')
 }
 
-// 修改密码（JSON 格式，兼容 camelCase / snake_case）
+// 修改密码
 export const changePassword = (data: ChangePasswordParams) => {
-  // 同时发送 camelCase 和 snake_case，后端用哪个都行
   return request.post('/v1/admin/auth/update_pwd', {
-    oldPassword: data.oldPassword,
-    newPassword: data.newPassword,
-    old_password: data.oldPassword,
-    new_password: data.newPassword,
+    oldPwd: data.oldPassword,
+    newPwd: data.newPassword,
   })
 }
 
