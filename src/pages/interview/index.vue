@@ -30,11 +30,11 @@
     <!-- 筛选 + 工具栏 -->
     <div class="toolbar-card">
       <div class="toolbar-left">
-        <el-radio-group v-model="filterStatus" size="small" style="margin-left: 16px;">
-          <el-radio-button value="all">全部状态</el-radio-button>
-          <el-radio-button value="published">已发布</el-radio-button>
-          <el-radio-button value="draft">草稿</el-radio-button>
-          <el-radio-button value="ended">已结束</el-radio-button>
+        <el-radio-group v-model="filterClass" size="small" style="margin-left: 16px;" @change="onFilterChange">
+          <el-radio-button value="all">全部班级</el-radio-button>
+          <el-radio-button value="一班">一班</el-radio-button>
+          <el-radio-button value="二班">二班</el-radio-button>
+          <el-radio-button value="三班">三班</el-radio-button>
         </el-radio-group>
       </div>
       <div class="toolbar-right">
@@ -49,18 +49,12 @@
       <el-table :data="currentPageData" border stripe class="homework-table"
         :header-cell-style="{ backgroundColor:'#f8fafc', color:'#475569', fontWeight:'600' }">
         <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="title" label="作业标题" min-width="200" show-overflow-tooltip />
-        <el-table-column label="题数" width="70" align="center">
-          <template #default="{ row }">{{ row.questions?.length || 0 }}</template>
+        <el-table-column prop="title" label="作业标题" min-width="160" show-overflow-tooltip />
+        <el-table-column label="班级" width="100" align="center">
+          <template #default="{ row }">{{ row.className || '全部班级' }}</template>
         </el-table-column>
-        <el-table-column prop="totalScore" label="总分" width="80" align="center" />
         <el-table-column prop="publishDate" label="发布日期" width="150" align="center" />
         <el-table-column prop="deadline" label="截止日期" width="150" align="center" />
-        <el-table-column label="状态" width="90" align="center">
-          <template #default="{ row }">
-            <span :class="['status-tag', 'status-' + row.status]">{{ statusText(row.status) }}</span>
-          </template>
-        </el-table-column>
         <el-table-column label="操作" width="240" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="openPreview(row)"><el-icon><View /></el-icon>预览</el-button>
@@ -123,6 +117,7 @@
               <el-col :span="8">
                 <el-form-item label="班级" label-width="60px" required>
                   <el-select v-model="form.className" style="width:100%" placeholder="请选择班级">
+                    <el-option label="全部班级" value="" />
                     <el-option label="一班" value="一班" />
                     <el-option label="二班" value="二班" />
                     <el-option label="三班" value="三班" />
@@ -373,15 +368,17 @@ const loadCourses = async () => {
 }
 
 // ==================== 筛选 ====================
-const filterStatus = ref('all')
+const filterClass = ref('all')
 
 const filteredList = computed(() => {
-  let list = [...store.homeworks]
-  if (filterStatus.value !== 'all') {
-    list = list.filter(h => h.status === filterStatus.value)
+  const list = [...store.homeworks]
+  if (filterClass.value !== 'all') {
+    return list.filter(h => h.className === filterClass.value)
   }
   return list
 })
+
+const onFilterChange = () => { currentPage.value = 1 }
 
 // ==================== 分页 ====================
 const currentPage = ref(1)
