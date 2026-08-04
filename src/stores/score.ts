@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getPerformanceList, getPerformanceDetail, type ApiPerformanceItem } from '@/api/score'
+import { getPerformanceList, getPerformanceDetail } from '@/api/score'
 
 /** 作业成绩记录 */
 export interface ScoreRecord {

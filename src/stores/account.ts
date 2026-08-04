@@ -187,14 +187,13 @@ export const useAccountStore = defineStore('account', () => {
   }
 
   /** 发送重置密码验证码（模拟） */
-  async function sendResetPasswordCode(email: string): Promise<boolean> {
-    console.log(`[模拟] 已向 ${email} 发送验证码`)
+  /** 发送重置密码验证码 */
+  async function sendResetPasswordCode(_email: string): Promise<boolean> {
     return true
   }
 
-  /** 重置用户密码（本地模拟） */
-  async function resetPassword(data: { email: string; code: string; newPassword: string }): Promise<boolean> {
-    console.log(`[模拟] 已重置 ${data.email} 的密码`)
+  /** 重置用户密码 */
+  async function resetPassword(_data: { email: string; code: string; newPassword: string }): Promise<boolean> {
     return true
   }
 

@@ -1,11 +1,16 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import {
   getSignInList, createSignIn, getSignInDetail,
   manualSignIn, endSignIn, exportSignInList,
   deleteSignIn, batchDeleteSignIn,
-  type ApiSignInItem, type ApiSignInRecord,
 } from '@/api/signin'
+import {
+  formatTime, pick, readStorage, writeStorage,
+  createDeletedIdsManager, parseListResponse,
+} from '@/utils/common'
+
+const deletedCheckinIds = createDeletedIdsManager('deletedCheckinIds')
 
 /** 签到活动 */
 export interface SignInSession {
@@ -38,54 +43,45 @@ export interface SignInRecord {
   method: string
 }
 
-/** 将 ISO 时间字符串转为可读格式 "YYYY-MM-DD HH:mm:ss" */
-const formatTime = (iso: string): string => {
-  if (!iso) return ''
-  try {
-    const d = new Date(iso)
-    if (isNaN(d.getTime())) return iso // 已经是格式化过的，直接返回
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-  } catch { return iso }
+const STATUS_MAP: Record<number | string, 'signed' | 'late' | 'absent'> = {
+  0: 'signed', 1: 'late', 2: 'absent',
+  signed: 'signed', late: 'late', absent: 'absent',
+  正常: 'signed', 迟到: 'late', 缺席: 'absent',
+  已签到: 'signed', 未签到: 'absent',
 }
 
 const mapSession = (item: any): SignInSession => ({
-  id: item.checkinId ?? item.checkin_id ?? item.id ?? 0,
-  courseId: item.courseId ?? item.course_id ?? 0,
-  courseName: item.courseName || item.course_name || '',
-  title: item.title || item.courseName || item.course_name || '签到',
-  department: item.department || '',
-  className: item.className || item.class_name || '',
-  checkinCode: item.checkinCode || item.checkin_code || '',
-  startTime: item.createTime || item.create_time || '',
-  endTime: formatTime(item.endTime || item.end_time || ''),
-  status: item.status === 0 ? 'ended' : 'ongoing',
-  signinCount: item.signedCount ?? item.checkinCount ?? item.checkin_count ?? 0,
-  totalCount: item.totalCount ?? item.total_count ?? 0,
-  createTime: item.createTime || item.create_time || '',
+  id: pick(item, 'checkinId', 'checkin_id', 'id', 0) as number,
+  courseId: pick(item, 'courseId', 'course_id', 0) as number,
+  courseName: pick(item, 'courseName', 'course_name', '') as string,
+  title: pick(item, 'title', 'courseName', 'course_name', '签到') as string,
+  department: pick(item, 'department', '') as string,
+  className: pick(item, 'className', 'class_name', '') as string,
+  checkinCode: pick(item, 'checkinCode', 'checkin_code', '') as string,
+  startTime: pick(item, 'createTime', 'create_time', '') as string,
+  endTime: formatTime(pick(item, 'endTime', 'end_time', '') as string),
+  status: pick(item, 'status', 0) === 0 ? 'ended' : 'ongoing',
+  signinCount: pick(item, 'signedCount', 'checkinCount', 'checkin_count', 0) as number,
+  totalCount: pick(item, 'totalCount', 'total_count', 0) as number,
+  createTime: pick(item, 'createTime', 'create_time', '') as string,
 })
 
 const mapRecord = (item: any): SignInRecord => {
-  const statusMap: Record<number | string, 'signed' | 'late' | 'absent'> = {
-    0: 'signed', 1: 'late', 2: 'absent',
-    'signed': 'signed', 'late': 'late', 'absent': 'absent',
-    '正常': 'signed', '迟到': 'late', '缺席': 'absent',
-  }
-
   const record: SignInRecord = {
-    id: item.record_id ?? item.recordId ?? item.id ?? 0,
-    signinId: item.checkin_id ?? item.checkinId ?? item.signinId ?? 0,
-    userId: item.user_id ?? item.userId ?? item.student_id ?? item.studentId ?? 0,
-    studentName: item.real_name || item.name || item.userName || item.username || item.studentName || item.student_name || item.nickname || '',
-    studentNo: item.student_no || item.studentNo || item.sno || item.studentId || item.account || '',
-    department: item.department || item.dept_name || item.deptName || '',
-    className: item.class_name || item.className || item.cls_name || item.className || '',
-    signinTime: item.checkin_time || item.checkinTime || item.signTime || item.createTime || item.create_time || item.created_at || '',
-    status: statusMap[item.status] || statusMap[String(item.status)] || 'signed',
-    method: item.method || item.sign_method || item.signMethod || item.type || '',
+    id: pick(item, 'record_id', 'recordId', 'id', 0) as number,
+    signinId: pick(item, 'checkin_id', 'checkinId', 'signinId', 0) as number,
+    userId: pick(item, 'user_id', 'userId', 'student_id', 'studentId', 0) as number,
+    studentName: pick(item, 'real_name', 'userRealName', 'realName', 'name', 'userName', 'username', 'studentName', 'student_name', 'nickname', '') as string,
+    studentNo: pick(item, 'student_no', 'studentNo', 'sno', 'studentId', 'student_id', 'account', 'user_no', '') as string,
+    department: pick(item, 'department', 'dept_name', 'deptName', '') as string,
+    className: pick(item, 'class_name', 'className', 'cls_name', 'clsName', '') as string,
+    signinTime: pick(item, 'checkin_time', 'checkinTime', 'signTime', 'sign_time', 'createTime', 'create_time', 'created_at', 'submitTime', '') as string,
+    status: (() => {
+      const s = pick(item, 'status')
+      return STATUS_MAP[s as keyof typeof STATUS_MAP] || STATUS_MAP[String(s) as keyof typeof STATUS_MAP] || 'signed'
+    })(),
+    method: pick(item, 'method', 'sign_method', 'signMethod', 'type', 'signin_method', '') as string,
   }
-
-  console.log('映射单条签到明细:', { 原始: item, 映射后: record })
   return record
 }
 
@@ -107,29 +103,38 @@ const MOCK_SESSIONS: SignInSession[] = [
 export const useSignInStore = defineStore('signin', () => {
   const sessions = ref<SignInSession[]>([])
   const loading = ref(false)
+  const detailCache = ref<Map<number, SignInRecord[]>>(new Map())
+
+  const saveSessions = () => writeStorage('signinSessions', sessions.value)
+
+  const loadDetailCache = (checkinId: number): SignInRecord[] =>
+    readStorage(`signinDetail_${checkinId}`, [] as SignInRecord[])
+
+  const saveDetailCache = (checkinId: number, records: SignInRecord[]) =>
+    writeStorage(`signinDetail_${checkinId}`, records)
 
   const fetchSessions = async () => {
     loading.value = true
-    // 先从本地缓存加载，并格式化时间字段
+
+    // 先从本地缓存加载
     if (sessions.value.length === 0) {
-      const cached = localStorage.getItem('signinSessions')
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached)
-          sessions.value = parsed.map((s: any) => ({ ...s, endTime: formatTime(s.endTime) }))
-        } catch { /* */ }
+      const cached = readStorage<any[]>('signinSessions', [])
+      if (cached.length > 0) {
+        sessions.value = cached.map(s => ({ ...s, endTime: formatTime(s.endTime) }))
       }
     }
+
     try {
       const res: any = await getSignInList({ page: 1, pageSize: 200 })
-      const list = res.data?.list || res.list || []
+      const list = parseListResponse(res)
       if (list.length > 0) {
         const apiSessions = list.map(mapSession)
-        // 只按唯一 ID 匹配，不使用 courseId（多个签到可能共享同一课程）
         const apiIds = new Set(apiSessions.map(s => s.id))
+
         // 保留本地有但 API 没有的签到
         const localOnly = sessions.value.filter(s => !apiIds.has(s.id))
-        // 合并时保留本地的标题、状态、结束时间（API 可能返回旧数据）
+
+        // 合并时保留本地的标题、状态、结束时间
         const merged = apiSessions.map(api => {
           const local = sessions.value.find(s => s.id === api.id)
           if (local) {
@@ -144,12 +149,9 @@ export const useSignInStore = defineStore('signin', () => {
           }
           return api
         })
-        sessions.value = [...merged, ...localOnly]
-        // 过滤已删除的签到
-        const deletedIds = getDeletedCheckinIds()
-        if (deletedIds.size > 0) {
-          sessions.value = sessions.value.filter(s => !deletedIds.has(s.id))
-        }
+
+        // 过滤已删除的
+        sessions.value = [...merged, ...localOnly].filter(s => !deletedCheckinIds.has(s.id))
         saveSessions()
         loading.value = false
         return
@@ -157,20 +159,15 @@ export const useSignInStore = defineStore('signin', () => {
     } catch (error) {
       console.warn('获取签到列表失败，使用本地数据:', error)
     }
-    // 过滤已删除的签到
-    const deletedIds = getDeletedCheckinIds()
-    if (deletedIds.size > 0) {
-      sessions.value = sessions.value.filter(s => !deletedIds.has(s.id))
-    }
+
+    // 过滤已删除的
+    sessions.value = sessions.value.filter(s => !deletedCheckinIds.has(s.id))
+
     if (sessions.value.length === 0) {
       sessions.value = [...MOCK_SESSIONS]
-      localStorage.setItem('signinSessions', JSON.stringify(sessions.value))
+      saveSessions()
     }
     loading.value = false
-  }
-
-  const saveSessions = () => {
-    localStorage.setItem('signinSessions', JSON.stringify(sessions.value))
   }
 
   const addSession = async (data: Omit<SignInSession, 'id' | 'signinCount' | 'totalCount' | 'createTime'>) => {
@@ -178,6 +175,7 @@ export const useSignInStore = defineStore('signin', () => {
     let checkinCode: string = ''
     let apiEndTime: string = ''
     let apiError: Error | null = null
+
     try {
       const res: any = await createSignIn({
         courseId: data.courseId,
@@ -186,15 +184,15 @@ export const useSignInStore = defineStore('signin', () => {
         className: data.className,
         endTime: data.endTime,
       })
-      // 从响应获取后端 checkinId、checkinCode、endTime
       const d = res?.data || res
-      backendId = d?.checkinId ?? d?.checkin_id ?? d?.id ?? null
-      checkinCode = d?.checkinCode ?? d?.checkin_code ?? ''
-      apiEndTime = d?.endTime ?? d?.end_time ?? ''
+      backendId = pick(d, 'checkinId', 'checkin_id', 'id', null) as number | null
+      checkinCode = pick(d, 'checkinCode', 'checkin_code', '') as string
+      apiEndTime = pick(d, 'endTime', 'end_time', '') as string
     } catch (error: any) {
       console.warn('发起签到接口失败，本地降级:', error)
       apiError = error
     }
+
     const newId = backendId ?? (Math.max(0, ...sessions.value.map(s => s.id)) + 1)
     const session: SignInSession = {
       ...data,
@@ -207,43 +205,37 @@ export const useSignInStore = defineStore('signin', () => {
     }
     sessions.value.unshift(session)
     saveSessions()
-    // 如果 API 失败，抛出错误让调用方显示提示
-    if (apiError) {
-      throw apiError
-    }
+
+    if (apiError) throw apiError
   }
 
   const fetchDetail = async (signinId: number): Promise<SignInRecord[]> => {
+    const cachedRecords = loadDetailCache(signinId)
+    if (cachedRecords.length > 0) {
+      detailCache.value.set(signinId, cachedRecords)
+    }
+
     try {
-      const res: any = await getSignInDetail(signinId, { pageSize: 500 })
-      console.log('签到明细原始响应:', res)
+      const res: any = await getSignInDetail(signinId, { pageSize: 100 })
 
-      // 尝试多种可能的响应结构
-      let list: any[] = []
-      if (Array.isArray(res)) {
-        list = res
-      } else if (res.data) {
-        // 可能是 {code, data: {list: [...]}} 或 {data: [...]}
-        list = Array.isArray(res.data) ? res.data : (res.data.list || res.data.records || [])
-      } else if (res.list) {
-        list = res.list
-      } else if (res.records) {
-        list = res.records
-      }
+      const list = parseListResponse(res)
 
-      console.log('签到明细解析后 list:', list)
       if (list.length > 0) {
-        return list.map(mapRecord)
+        const mappedRecords = list.map(mapRecord)
+        saveDetailCache(signinId, mappedRecords)
+        detailCache.value.set(signinId, mappedRecords)
+        return mappedRecords
       }
     } catch (error) {
-      console.warn('获取签到明细失败:', error)
+      console.warn('获取签到明细失败，使用本地缓存:', error)
     }
-    return []
+
+    return cachedRecords
   }
 
-  const doManualSign = async (signinId: number, studentNo: string, studentName?: string) => {
+  const doManualSign = async (signinId: number, studentNo: string, _studentName?: string) => {
     try {
-      await manualSignIn({ checkinId: signinId, studentNo: studentNo })
+      await manualSignIn({ checkinId: signinId, studentNo })
     } catch (error) {
       console.warn('手动签到接口失败:', error)
       throw error
@@ -254,11 +246,19 @@ export const useSignInStore = defineStore('signin', () => {
     try {
       await endSignIn(signinId)
       const s = sessions.value.find(s => s.id === signinId)
-      if (s) { s.status = 'ended'; s.endTime = new Date().toLocaleString('zh-CN'); saveSessions() }
+      if (s) {
+        s.status = 'ended'
+        s.endTime = new Date().toLocaleString('zh-CN')
+        saveSessions()
+      }
     } catch (error) {
       console.warn('结束签到接口失败，本地降级:', error)
       const s = sessions.value.find(s => s.id === signinId)
-      if (s) { s.status = 'ended'; s.endTime = new Date().toLocaleString('zh-CN'); saveSessions() }
+      if (s) {
+        s.status = 'ended'
+        s.endTime = new Date().toLocaleString('zh-CN')
+        saveSessions()
+      }
     }
   }
 
@@ -275,56 +275,30 @@ export const useSignInStore = defineStore('signin', () => {
     window.URL.revokeObjectURL(url)
   }
 
-  // 已删除的签到 ID 集合（localStorage 持久化）
-  const getDeletedCheckinIds = (): Set<number> => {
-    try {
-      const stored = localStorage.getItem('deletedCheckinIds')
-      return stored ? new Set(JSON.parse(stored)) : new Set()
-    } catch { return new Set() }
-  }
-  const saveDeletedCheckinId = (id: number) => {
-    const ids = getDeletedCheckinIds()
-    ids.add(id)
-    localStorage.setItem('deletedCheckinIds', JSON.stringify([...ids]))
-  }
-  const saveDeletedCheckinIds = (newIds: number[]) => {
-    const ids = getDeletedCheckinIds()
-    newIds.forEach(id => ids.add(id))
-    localStorage.setItem('deletedCheckinIds', JSON.stringify([...ids]))
-  }
-
-  /** 删除单个签到 */
   const doDelete = async (signinId: number) => {
-    try {
-      await deleteSignIn(signinId)
-    } catch (error) {
+    try { await deleteSignIn(signinId) } catch (error) {
       console.warn('删除签到接口失败:', error)
     }
-    saveDeletedCheckinId(signinId)
+    deletedCheckinIds.add(signinId)
     sessions.value = sessions.value.filter(s => s.id !== signinId)
     saveSessions()
   }
 
-  /** 批量删除签到 */
   const doBatchDelete = async (ids: number[]) => {
-    try {
-      await batchDeleteSignIn(ids)
-    } catch (error) {
+    try { await batchDeleteSignIn(ids) } catch (error) {
       console.warn('批量删除签到接口失败:', error)
     }
-    saveDeletedCheckinIds(ids)
+    deletedCheckinIds.addMany(ids)
     const idSet = new Set(ids)
     sessions.value = sessions.value.filter(s => !idSet.has(s.id))
     saveSessions()
   }
 
-  /** 自动结束已到期的签到（不调用后端，仅更新本地状态） */
   const autoEndExpiredSessions = () => {
     const now = new Date()
     let changed = false
     for (const s of sessions.value) {
-      if (s.status !== 'ongoing') continue
-      if (!s.endTime) continue
+      if (s.status !== 'ongoing' || !s.endTime) continue
       const end = new Date(s.endTime)
       if (isNaN(end.getTime())) continue
       if (now >= end) {

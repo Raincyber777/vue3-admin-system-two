@@ -80,12 +80,29 @@ export interface SignInDetailRes {
   list: ApiSignInRecord[]
 }
 
+/** 签到明细查询参数 */
+export interface SignInDetailParams {
+  page?: number
+  pageSize?: number
+  checkinId?: number | string
+  checkin_id?: number | string
+  id?: number | string
+}
+
 /**
  * 获取签到明细
  * GET /v1/admin/checkin/records
  */
 export const getSignInDetail = async (checkinId: number, params?: { page?: number; pageSize?: number }): Promise<SignInDetailRes> => {
-  return request.get('/v1/admin/checkin/records', { params: { ...params, checkinId } })
+  // 同时支持多种参数名，确保后端能接收到
+  return request.get('/v1/admin/checkin/records', {
+    params: {
+      ...params,
+      checkinId,
+      checkin_id: checkinId,
+      id: checkinId,
+    }
+  })
 }
 
 /**
