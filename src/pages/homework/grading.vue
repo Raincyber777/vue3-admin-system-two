@@ -27,9 +27,9 @@
       <div class="toolbar-left">
         <el-radio-group v-model="filterClass" size="small" style="margin-left:16px" @change="onFilterChange">
           <el-radio-button value="all">全部班级</el-radio-button>
-          <el-radio-button value="1班">1班</el-radio-button>
-          <el-radio-button value="2班">2班</el-radio-button>
-          <el-radio-button value="3班">3班</el-radio-button>
+          <el-radio-button value="一班">一班</el-radio-button>
+          <el-radio-button value="二班">二班</el-radio-button>
+          <el-radio-button value="三班">三班</el-radio-button>
         </el-radio-group>
         <el-radio-group v-model="filterStatus" size="small" style="margin-left:16px" @change="onFilterChange">
           <el-radio-button value="all">全部</el-radio-button>
@@ -211,7 +211,12 @@ const ungradedCount = computed(() =>
   submissions.value.filter(s => s.gradingStatus === 'ungraded').length
 )
 
-const onFilterChange = () => { currentPage.value = 1 }
+const onFilterChange = () => {
+  currentPage.value = 1
+  store.fetchSubmissions({
+    groupName: filterClass.value !== 'all' ? filterClass.value : undefined,
+  })
+}
 
 // ==================== 分页 ====================
 const currentPage = ref(1)
@@ -326,6 +331,7 @@ const handleBatchDelete = async () => {
 
 onMounted(() => {
   store.fetchSubmissions()
+  store.fetchHomeworks()
 })
 </script>
 

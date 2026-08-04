@@ -120,6 +120,15 @@
                   </el-select>
                 </el-form-item>
               </el-col>
+              <el-col :span="8">
+                <el-form-item label="班级" label-width="60px" required>
+                  <el-select v-model="form.className" style="width:100%" placeholder="请选择班级">
+                    <el-option label="一班" value="一班" />
+                    <el-option label="二班" value="二班" />
+                    <el-option label="三班" value="三班" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
             </el-row>
             <el-row :gutter="16">
               <el-col :span="12">
@@ -410,6 +419,7 @@ interface QForm extends Question {
 interface HwForm {
   title: string
   courseId: number | string
+  className: string
   publishDate: string
   deadline: string
   questions: QForm[]
@@ -444,7 +454,7 @@ const publishConfirmVisible = ref(false)
 const publishTarget = ref<'form' | Homework | null>(null)
 
 const form = reactive<HwForm>({
-  title: '', courseId: '', publishDate: '', deadline: '',
+  title: '', courseId: '', className: '', publishDate: '', deadline: '',
   questions: [],
 })
 
@@ -453,6 +463,7 @@ const calcTotal = computed(() => form.questions.reduce((s, q) => s + (q.score ||
 const resetForm = () => {
   form.title = ''
   form.courseId = ''
+  form.className = ''
   form.publishDate = ''
   form.deadline = ''
   form.questions = []

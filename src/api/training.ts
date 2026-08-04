@@ -301,6 +301,55 @@ const createTrainingNotification = async (data: CreateNotificationParams) => {
   return request.post('/admin/training-notifications', data)
 }
 
+// ==================== 培训名单 & 导出 ====================
+
+/** 培训名单列表项 */
+export interface ClassListItem {
+  id: number
+  name: string
+  studentId: string
+  college: string
+  major: string
+  className: string
+  phone: string
+  groupName: string
+  auditTime: string
+}
+
+/** 培训名单响应 */
+export interface ClassListRes {
+  groupName: string
+  count: number
+  list: ClassListItem[]
+}
+
+/**
+ * 获取培训名单（分班结果）
+ * GET /v1/admin/sign/class/list
+ */
+const getClassList = async (groupId: string): Promise<ClassListRes> => {
+  return request.get('/v1/admin/sign/class/list', { params: { groupId } })
+}
+
+/** 导出名单行（后端返回中文 key） */
+export interface ExportClassItem {
+  '姓名': string
+  '学号': string
+  '学院': string
+  '专业': string
+  '班级': string
+  '分班': string
+  '手机号': string
+}
+
+/**
+ * 导出培训名单
+ * GET /v1/admin/sign/class/list（同一接口，后端按来源区分返回格式）
+ */
+const exportClassList = async (groupId: string): Promise<{ list: ExportClassItem[] }> => {
+  return request.get('/v1/admin/sign/class/list', { params: { groupId } })
+}
+
 // 统一导出
 export {
   getTrainingStatistics,
@@ -330,5 +379,8 @@ export {
   updateTrainingCourse,
   deleteTrainingCourse,
   getTrainingNotificationList,
-  createTrainingNotification
+  createTrainingNotification,
+  // 培训名单
+  getClassList,
+  exportClassList
 }

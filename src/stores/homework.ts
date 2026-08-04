@@ -239,59 +239,46 @@ export const useHomeworkStore = defineStore('homework', () => {
 
   // ==================== 数据加载 ====================
   const fetchHomeworks = async () => {
-    // 纯本地数据，不从 API 加载
-    const cached = localStorage.getItem('adminHomeworks')
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          homeworks.value = parsed
-        }
-      } catch { /* ignore */ }
+    try {
+      const res: any = await getHomeworkList()
+      const data = res.data || res
+      const list = data?.list || (Array.isArray(data) ? data : [])
+      homeworks.value = list.map((item: any) => ({
+        id: item.homeworkId ?? item.homework_id ?? 0,
+        title: item.homeworkTitle ?? item.homework_title ?? '',
+        department: 'software' as const,
+        publishDate: item.createTime ?? item.create_time ?? '',
+        deadline: item.deadline || '',
+        questions: [],
+        courseId: item.courseId ?? item.course_id ?? 0,
+        courseName: item.courseName ?? item.course_name ?? '',
+        className: item.groupName || item.group_name || '',
+        totalScore: 0,
+        status: 'published' as const,
+        createdAt: item.createTime ?? item.create_time ?? '',
+        createdBy: '管理员',
+      }))
+    } catch (error) {
+      console.warn('获取作业列表失败:', error)
+      homeworks.value = []
     }
-    // 过滤已删除
-    const deletedIds = getDeletedHomeworkIds()
-    if (deletedIds.size > 0) {
-      homeworks.value = homeworks.value.filter(h => !deletedIds.has(h.id))
-    }
-    // 本地没有任何数据时才用 mock（首次使用）
-    if (homeworks.value.length === 0) {
-      homeworks.value = [...MOCK_HOMEWORKS]
-      saveToStorage()
-    }
-  }
-
-  const saveToStorage = () => {
-    localStorage.setItem('adminHomeworks', JSON.stringify(homeworks.value))
   }
 
   // ==================== CRUD ====================
   const createHomework = async (data: Omit<Homework, 'id' | 'totalScore' | 'createdAt'>, courseId?: number | string) => {
-    // 调用后端 API
     try {
       await createHomeworkApi({
         homeworkTitle: data.title,
         homeworkContent: data.questions.map(q => q.title).join('；') || data.title,
         deadline: data.deadline || '',
         courseId: courseId || 0,
+        groupName: (data as any).className || '',
       })
+      await fetchHomeworks()
     } catch (error) {
-      console.warn('布置作业接口失败，本地保存:', error)
+      console.warn('布置作业接口失败:', error)
+      throw error
     }
-
-    const newId = Math.max(0, ...homeworks.value.map(h => h.id)) + 1
-    const now = new Date().toLocaleString('zh-CN')
-    const hw: Homework = {
-      ...data,
-      id: newId,
-      courseId: courseId || undefined,
-      totalScore: calcTotalScore(data.questions),
-      createdAt: now,
-      createdBy: '管理员',
-    }
-    homeworks.value.unshift(hw)
-    saveToStorage()
-    return hw
   }
 
   const updateHomework = async (id: number, data: Partial<Omit<Homework, 'id' | 'createdAt'>>, courseId?: number | string) => {
@@ -301,27 +288,22 @@ export const useHomeworkStore = defineStore('homework', () => {
         homeworkContent: data.questions ? JSON.stringify(data.questions) : undefined,
         deadline: data.deadline,
         courseId: courseId || 0,
+        groupName: (data as any).className || '',
       })
+      await fetchHomeworks()
     } catch (error) {
-      console.warn('编辑作业接口失败，本地更新:', error)
+      console.warn('编辑作业接口失败:', error)
+      throw error
     }
-
-    const idx = homeworks.value.findIndex(h => h.id === id)
-    if (idx === -1) return
-    const merged = { ...homeworks.value[idx], ...data }
-    if (courseId !== undefined) merged.courseId = courseId
-    if (data.questions) {
-      merged.totalScore = calcTotalScore(merged.questions)
-    }
-    homeworks.value[idx] = merged
-    saveToStorage()
   }
 
   const deleteHomework = async (id: number) => {
-    // 后端无删除接口，纯前端 localStorage 持久化删除
-    saveDeletedHomeworkId(id)
+    try {
+      await deleteHomeworkApi(id)
+    } catch (error) {
+      console.warn('删除作业接口失败:', error)
+    }
     homeworks.value = homeworks.value.filter(h => h.id !== id)
-    saveToStorage()
   }
 
   const publishHomework = (id: number) => {
@@ -329,7 +311,6 @@ export const useHomeworkStore = defineStore('homework', () => {
     if (hw) {
       hw.status = 'published'
       hw.publishDate = new Date().toLocaleString('zh-CN')
-      saveToStorage()
     }
   }
 
@@ -363,12 +344,9 @@ export const useHomeworkStore = defineStore('homework', () => {
   // ==================== 学生提交 ====================
   const submissions = ref<HomeworkSubmission[]>([])
 
-  const fetchSubmissions = async () => {
-    if (homeworks.value.length === 0) {
-      await fetchHomeworks()
-    }
+  const fetchSubmissions = async (params?: { groupName?: string; homeworkId?: number | string; courseId?: number | string }) => {
     try {
-      const res: any = await getSubmitList()
+      const res: any = await getSubmitList(params)
       const data = res.data || res
       const list = data?.list || data?.records || (Array.isArray(data) ? data : [])
       if (list.length > 0) {
@@ -388,7 +366,7 @@ export const useHomeworkStore = defineStore('homework', () => {
             studentName: item.realName || item.userRealName || item.real_name || item.studentName || item.name || '',
             studentNo: item.studentNo || item.student_no || String(item.userId ?? ''),
             department: 'software' as const,
-            className: item.className || item.class_name || '',
+            className: item.groupName || item.group_name || item.className || item.class_name || '',
             phone: item.userPhone || item.user_phone || '',
             submitTime: item.submitTime || item.submit_time || item.createTime || '',
             submitContent: item.submitContent || item.submit_content || '',
@@ -419,28 +397,12 @@ export const useHomeworkStore = defineStore('homework', () => {
           return api
         })
         submissions.value = mergedSubmissions
-        saveSubmissions()
         return
       }
     } catch (error) {
-      console.warn('获取提交列表失败，使用本地数据:', error)
+      console.warn('获取提交列表失败:', error)
     }
-    const cached = localStorage.getItem('adminSubmissions')
-    if (cached) {
-      try {
-        submissions.value = JSON.parse(cached)
-        // 过滤已删除
-        const deletedIds = getDeletedSubmitIds()
-        if (deletedIds.size > 0) submissions.value = submissions.value.filter(s => !deletedIds.has(s.id))
-        return
-      } catch { /* ignore */ }
-    }
-    submissions.value = [...MOCK_SUBMISSIONS]
-    localStorage.setItem('adminSubmissions', JSON.stringify(submissions.value))
-  }
-
-  const saveSubmissions = () => {
-    localStorage.setItem('adminSubmissions', JSON.stringify(submissions.value))
+    submissions.value = []
   }
 
   const getSubmissionById = (id: number) => submissions.value.find(s => s.id === id)
@@ -553,8 +515,7 @@ export const useHomeworkStore = defineStore('homework', () => {
             listRow.className = result.className
             listRow.studentNo = listRow.studentNo || result.studentNo
             listRow.phone = listRow.phone || result.phone
-            saveSubmissions()
-          }
+                  }
         }
 
         return result
@@ -574,7 +535,6 @@ export const useHomeworkStore = defineStore('homework', () => {
       ans.score = score
       ans.comment = comment
     }
-    saveSubmissions()
   }
 
   /** 完成批改：提交总分和评语，标记状态 */
@@ -599,7 +559,6 @@ export const useHomeworkStore = defineStore('homework', () => {
     sub.gradingStatus = 'graded'
     if (remark !== undefined) sub.remark = remark
     sub.gradedAt = new Date().toLocaleString('zh-CN')
-    saveSubmissions()
     return true
   }
 
@@ -633,7 +592,6 @@ export const useHomeworkStore = defineStore('homework', () => {
     try { await deleteSubmit(submitId) } catch { console.warn('删除提交接口失败') }
     saveDeletedSubmitId(submitId)
     submissions.value = submissions.value.filter(s => s.id !== submitId)
-    saveSubmissions()
   }
 
   /** 批量删除提交 */
@@ -642,7 +600,6 @@ export const useHomeworkStore = defineStore('homework', () => {
     saveDeletedSubmitIds(ids)
     const idSet = new Set(ids)
     submissions.value = submissions.value.filter(s => !idSet.has(s.id))
-    saveSubmissions()
   }
 
   return {

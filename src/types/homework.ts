@@ -37,6 +37,8 @@ export interface Homework {
   courseId?: number | string
   /** 关联的课程名称 */
   courseName?: string
+  /** 关联的班级（系统分班后的班级：1班/2班/3班） */
+  className?: string
   /** 总分（各题分值自动求和） */
   totalScore: number
   status: 'draft' | 'published' | 'ended'

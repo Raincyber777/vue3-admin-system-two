@@ -9,9 +9,9 @@
       <div class="toolbar-left">
         <el-radio-group v-model="filterClass" size="small" @change="onFilterChange">
           <el-radio-button value="all">全部班级</el-radio-button>
-          <el-radio-button value="1班">1班</el-radio-button>
-          <el-radio-button value="2班">2班</el-radio-button>
-          <el-radio-button value="3班">3班</el-radio-button>
+          <el-radio-button value="一班">一班</el-radio-button>
+          <el-radio-button value="二班">二班</el-radio-button>
+          <el-radio-button value="三班">三班</el-radio-button>
         </el-radio-group>
       </div>
       <div class="toolbar-right">
@@ -26,13 +26,13 @@
       <el-table :data="currentPageData" border stripe v-loading="loading"
         :header-cell-style="{ backgroundColor:'#f8fafc', color:'#475569', fontWeight:'600' }">
         <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="student_name" label="姓名" min-width="100" align="center" />
-        <el-table-column prop="student_id" label="学号" min-width="130" align="center" />
+        <el-table-column prop="name" label="姓名" min-width="100" align="center" />
+        <el-table-column prop="studentId" label="学号" min-width="130" align="center" />
         <el-table-column prop="college" label="学院" min-width="160" align="center" show-overflow-tooltip />
         <el-table-column prop="major" label="专业" min-width="140" align="center" show-overflow-tooltip />
-        <el-table-column prop="class_name" label="班级" min-width="120" align="center" />
+        <el-table-column prop="className" label="班级" min-width="120" align="center" />
         <el-table-column prop="phone" label="手机号" min-width="130" align="center" />
-        <el-table-column prop="training_class" label="培训分班" width="120" align="center" />
+        <el-table-column prop="groupName" label="培训分班" width="120" align="center" />
       </el-table>
 
       <!-- 分页 -->
@@ -61,33 +61,23 @@ import { ElMessage } from 'element-plus'
 import { Collection, Download } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
-
-// ==================== 数据类型 ====================
-interface TrainingStudent {
-  id: number
-  student_name: string
-  student_id: string
-  college: string
-  major: string
-  class_name: string
-  phone: string
-  training_class: string
-}
+import { getClassList, exportClassList, type ClassListItem } from '@/api/training'
 
 // ==================== 数据 ====================
-const list = ref<TrainingStudent[]>([])
+const list = ref<ClassListItem[]>([])
 const loading = ref(false)
 const exportLoading = ref(false)
 
 // ==================== 筛选 ====================
 const filterClass = ref('all')
+const GROUP_IDS = [1, 2, 3]
 
-const filteredList = computed(() => {
-  if (filterClass.value === 'all') return list.value
-  return list.value.filter(item => item.training_class === filterClass.value)
-})
+const filteredList = computed(() => list.value)
 
-const onFilterChange = () => { currentPage.value = 1 }
+const onFilterChange = () => {
+  currentPage.value = 1
+  fetchList()
+}
 
 // ==================== 分页 ====================
 const currentPage = ref(1)
@@ -102,27 +92,26 @@ const onPageSizeChange = () => { currentPage.value = 1 }
 const onPageChange = (p: number) => { currentPage.value = p }
 
 // ==================== 导出 ====================
-const handleExport = () => {
-  if (filteredList.value.length === 0) {
-    ElMessage.warning('没有可导出的数据')
-    return
-  }
+const handleExport = async () => {
   exportLoading.value = true
   try {
-    const exportData = filteredList.value.map((item, i) => ({
+    const gid = filterClass.value !== 'all' ? filterClass.value : ''
+    const res = await exportClassList(String(gid))
+    const rawList = (res as any).data?.list || (res as any).list || []
+    const exportData = rawList.map((item: any, i: number) => ({
       '序号': i + 1,
-      '姓名': item.student_name,
-      '学号': item.student_id,
-      '学院': item.college,
-      '专业': item.major,
-      '班级': item.class_name,
-      '手机号': item.phone,
-      '培训分班': item.training_class,
+      '姓名': item['姓名'] || item.name || '',
+      '学号': item['学号'] || item.studentId || '',
+      '学院': item['学院'] || item.college || '',
+      '专业': item['专业'] || item.major || '',
+      '班级': item['班级'] || item.className || '',
+      '分班': item['分班'] || item.groupName || '',
+      '手机号': item['手机号'] || item.phone || '',
     }))
     const ws = XLSX.utils.json_to_sheet(exportData)
     ws['!cols'] = [
       { wch: 6 }, { wch: 10 }, { wch: 14 }, { wch: 22 },
-      { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
+      { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
     ]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '培训名单')
@@ -137,12 +126,30 @@ const handleExport = () => {
 }
 
 // ==================== 数据加载 ====================
+const classGroupMap: Record<string, string> = { '一班': '1', '二班': '2', '三班': '3' }
+
 const fetchList = async () => {
   loading.value = true
   try {
-    // TODO: 接入真实 API，替换为实际接口调用
-    // const res = await getTrainingDetail()
-    // list.value = res.list || []
+    if (filterClass.value === 'all') {
+      // 全部班级：并发请求所有 groupId 后合并
+      const results = await Promise.allSettled(
+        GROUP_IDS.map(id => getClassList(String(id)))
+      )
+      const all: ClassListItem[] = []
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          const data = (r.value as any).data || r.value
+          all.push(...(data.list || []))
+        }
+      }
+      list.value = all
+    } else {
+      const gid = classGroupMap[filterClass.value] || '1'
+      const res = await getClassList(gid)
+      const data = (res as any).data || res
+      list.value = data.list || []
+    }
   } catch {
     console.warn('获取培训名单失败')
     list.value = []

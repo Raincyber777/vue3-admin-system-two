@@ -9,7 +9,9 @@ export interface CreateHomeworkParams {
   courseId: number | string
   homeworkTitle: string
   homeworkContent: string
-  deadline: string
+  deadline?: string
+  /** 班级（一班/二班/三班） */
+  groupName?: string
 }
 
 /**
@@ -52,6 +54,8 @@ export interface ApiHomeworkItem {
   deadline: string
   submit_count: number
   create_time: string
+  groupName?: string
+  group_name?: string
 }
 
 /** 作业列表响应 */
@@ -74,6 +78,7 @@ export interface SubmitListParams {
   size?: number
   homeworkId?: number | string
   courseId?: number | string
+  groupName?: string
 }
 
 /** 后端提交项 */
@@ -84,6 +89,8 @@ export interface ApiSubmitItem {
   homework_id: number
   homework_title: string
   course_name: string
+  group_name?: string
+  groupName?: string
   submit_time: string
   score: number | null
   status_text: string
