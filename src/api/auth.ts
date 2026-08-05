@@ -33,8 +33,9 @@ export interface UserInfo {
 
 // 登录响应数据
 export interface LoginResponseData {
-  token: string
+  accessToken?: string
   refresh_token?: string
+  adminInfo?: UserInfo
   user?: UserInfo
   user_info?: UserInfo
 }

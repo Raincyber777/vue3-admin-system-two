@@ -79,7 +79,7 @@ export const useAuthStore = defineStore('auth', () => {
     const payload = (res as any).data
     if (payload?.accessToken) {
       setToken(payload.accessToken, payload.refreshToken || payload.refresh_token)
-      const info = payload.user || payload.userInfo || payload.user_info || payload
+      const info = payload.adminInfo || payload.user || payload.userInfo || payload.user_info || payload
       if (info) {
         const newLabId = info.labId || info.lab_id
         const oldLabInfo = userInfo.value
@@ -111,7 +111,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!token.value) return
     try {
       const res = await getUserProfile()
-      const payload = (res as any).data || res
+      const payload = (res as any).data || (res as any).adminInfo || res
       if (payload) {
         // 确保兼容各种后端字段格式
         const normalizedInfo: any = {

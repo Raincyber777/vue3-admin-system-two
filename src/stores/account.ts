@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
 import { getUserList, getUserDetail, updateUserStatus, createUser, deleteUserApi, batchDeleteUsersApi } from '@/api/user'
+import { useAuthStore } from '@/stores/auth'
 
 export interface User {
   id: number
@@ -136,7 +137,7 @@ export const useAccountStore = defineStore('account', () => {
       '姓名': u.name,
       '邮箱': u.email,
       '角色': u.role === 'admin' ? '管理员' : '普通用户',
-      '所属部门': '软件开发实验室',
+      '所属部门': useAuthStore().currentLabName || '实验室',
       '班级': u.className,
       '注册时间': u.createdAt,
       '学号': u.studentNo,

@@ -215,6 +215,7 @@ import {
 } from '@element-plus/icons-vue'
 import { type Notice } from '@/services/notice'
 import { useApplicationStore } from '@/stores/application'
+import { useAuthStore } from '@/stores/auth'
 
 interface Person {
   id: number
@@ -228,7 +229,7 @@ const peopleList = computed<Person[]>(() => {
   return applicationStore.approvedApplicants.map(app => ({
     id: app.id,
     name: app.name,
-    department: '软件开发实验室'
+    department: useAuthStore().currentLabName || '实验室'
   }))
 })
 
