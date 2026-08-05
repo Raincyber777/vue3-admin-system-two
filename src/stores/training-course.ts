@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createCourse, updateCourseApi, deleteCourseApi, getCourseList, getCourseDetail, updateCourseStatus, type CourseDetail } from '@/api/course'
 import { parseListResponse, extractClassName, cnClassToArabic, classToCount } from '@/utils/common'
+import { useAuthStore } from '@/stores/auth'
 
 export type CourseStatus = 'draft' | 'pending' | 'published' | 'ended'
 export type RegistrationStatus = 'not_started' | 'ongoing' | 'ended'
@@ -117,36 +118,36 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
   const mapCourseItem = (item: any): Course => {
     // 后端返回 groups 字段，如 "一班、二班"，需要转换
     const rawGroups = item.groups || item.groupName || item.group_name || item.className || item.class_name || ''
-    const className = cnClassToArabic(rawGroups)  // 存储格式："1班"、"2班"、"3班"
-    const displayClassName = extractClassName(rawGroups)  // 显示格式："一班"、"二班"、"三班"
+    const className = cnClassToArabic(rawGroups)
+    const displayClassName = extractClassName(rawGroups)
 
     return {
-      id: String(item.courseId ?? ''),
-      name: item.courseName || '',
+      id: String(item.courseId ?? item.course_id ?? ''),
+      name: item.courseName ?? item.course_name ?? '',
       status: (item.status === 1 ? 'published' : 'draft') as CourseStatus,
       registrationStatus: 'ongoing' as RegistrationStatus,
       trainingTargets: [],
-      maxParticipants: item.maxSign ?? 50,
-      currentParticipants: item.signCount ?? 0,
+      maxParticipants: item.maxSign ?? item.max_sign ?? 50,
+      currentParticipants: item.signCount ?? item.sign_count ?? 0,
       timeType: 'fixed' as const,
-      startTime: item.startTime || '待定',
-      endTime: item.endTime || '待定',
+      startTime: item.startTime ?? item.start_time ?? '待定',
+      endTime: item.endTime ?? item.end_time ?? '待定',
       flexibleTime: undefined,
-      trainingLocation: item.location || '待定',
-      instructor: item.instructor || '待定',
+      trainingLocation: item.location ?? '待定',
+      instructor: item.instructor ?? '待定',
       className,
       displayClassName,
       prerequisites: '',
       courseTags: [],
-      description: item.courseDesc || item.description || '',
-      coverImg: item.coverImg || '',
+      description: item.courseDesc ?? item.course_desc ?? item.description ?? '',
+      coverImg: item.coverImg ?? item.cover_img ?? '',
       chapters: [],
       linkedAttendance: false,
       linkedScore: false,
       linkedAnnouncement: false,
-      createdAt: item.createTime || '',
-      updatedAt: item.createTime || '',
-      publishedAt: item.status === 1 ? item.createTime : undefined,
+      createdAt: item.createTime ?? item.create_time ?? '',
+      updatedAt: item.createTime ?? item.create_time ?? '',
+      publishedAt: item.status === 1 ? (item.createTime ?? item.create_time) : undefined,
       department: 'software',
     }
   }
@@ -155,7 +156,17 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     loading.value = true
     error.value = ''
     try {
-      const res: any = await getCourseList({ page: 1, size: 100 })
+      const authStore = useAuthStore()
+      const labId = authStore.currentLabId
+
+      // 构建查询参数，添加 labId 进行数据隔离
+      const params: any = { page: 1, size: 100 }
+      if (labId) {
+        params.labId = labId
+        params.lab_id = labId
+      }
+
+      const res: any = await getCourseList(params)
       const list = parseListResponse(res)
       courses.value = list.map(mapCourseItem)
       total.value = courses.value.length
@@ -171,9 +182,12 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     loading.value = true
     error.value = ''
     try {
+      const authStore = useAuthStore()
+      const labId = authStore.currentLabId
+
       // 将前端班级名 "1班" 转为数字 1，作为 groupCount 参数
       const groupCount = classToCount(data.className || '')
-      const payload = {
+      const payload: any = {
         courseName: data.name,
         courseDesc: data.description,
         coverImg: (data as any).coverImg || undefined,
@@ -187,11 +201,18 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
         flexibleTime: data.flexibleTime,
         courseDate: data.timeType === 'flexible' ? formatFlexibleTimeForApi(data.flexibleTime) : undefined,
       }
+
+      // 添加实验室 ID 进行数据隔离
+      if (labId) {
+        payload.labId = labId
+        payload.lab_id = labId
+      }
+
       await createCourse(payload)
       await fetchCourses()
       return true
     } catch (err: any) {
-      console.error('创建课程失败:', err)
+      console.warn('创建课程失败:', err)
       error.value = err.message || '创建课程失败'
       ElMessage.error(error.value)
       return false
@@ -224,7 +245,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       ElMessage.success('课程已更新')
       return true
     } catch (err: any) {
-      console.error('更新课程失败:', err)
+      console.warn('更新课程失败:', err)
       error.value = err.message || '更新课程失败'
       ElMessage.error(error.value)
       return false
@@ -291,7 +312,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       await fetchCourses()
       return true
     } catch (err: any) {
-      console.error('结束课程失败:', err)
+      console.warn('结束课程失败:', err)
       error.value = err.message || '结束课程失败'
       ElMessage.error(error.value)
       return false

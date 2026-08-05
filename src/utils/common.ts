@@ -86,13 +86,35 @@ export const createDeletedIdsManager = (storageKey: string) => ({
 export const parseListResponse = (res: any): any[] => {
   if (!res) return []
   if (Array.isArray(res)) return res
+
+  // 尝试从 data 中提取
   if (res.data) {
     const d = res.data
     if (Array.isArray(d)) return d
-    return d.list || d.records || d.items || []
+    // 尝试多种字段名
+    const listData = d.list || d.records || d.items || d.data || d.result
+    if (Array.isArray(listData)) return listData
   }
-  if (res.list) return res.list
-  if (res.records) return res.records
+
+  // 尝试从顶层提取
+  if (Array.isArray(res.list)) return res.list
+  if (Array.isArray(res.records)) return res.records
+  if (Array.isArray(res.items)) return res.items
+  if (Array.isArray(res.data)) return res.data
+  if (Array.isArray(res.result)) return res.result
+
+  // 最后尝试：检查 res.data 是否是一个包含列表的对象
+  if (res.data && typeof res.data === 'object') {
+    const d = res.data
+    // 搜索 data 对象中的数组字段
+    for (const key of Object.keys(d)) {
+      if (Array.isArray(d[key])) {
+        console.log('🔍 parseListResponse: 从 data.' + key + ' 提取到数组，长度:', d[key].length)
+        return d[key]
+      }
+    }
+  }
+
   return []
 }
 
