@@ -13,9 +13,9 @@
     <div class="toolbar-card">
       <el-radio-group v-model="filterClass" size="small" style="margin-left:16px" @change="onFilterChange">
         <el-radio-button value="all">全部班级</el-radio-button>
-        <el-radio-button value="1班">1班</el-radio-button>
-        <el-radio-button value="2班">2班</el-radio-button>
-        <el-radio-button value="3班">3班</el-radio-button>
+        <el-radio-button value="一班">一班</el-radio-button>
+        <el-radio-button value="二班">二班</el-radio-button>
+        <el-radio-button value="三班">三班</el-radio-button>
       </el-radio-group>
       <el-radio-group v-model="filterStatus" size="small" style="margin-left:16px" @change="onFilterChange">
         <el-radio-button value="all">全部</el-radio-button>
@@ -86,19 +86,16 @@
 
       <!-- 分页 -->
       <div class="pagination-wrapper">
-        <div class="pagination-info">
-          共 <strong>{{ filteredList.length }}</strong> 条，每页
-          <el-select v-model="pageSize" size="small" class="ps-select" @change="onPageSizeChange">
-            <el-option :value="10" label="10" />
-            <el-option :value="20" label="20" />
-            <el-option :value="50" label="50" />
-          </el-select>
-          条
-        </div>
-        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize"
-          :page-sizes="[10,20,50]" :total="filteredList.length"
-          layout="prev, pager, next" background
-          @size-change="onPageSizeChange" @current-change="onPageChange" />
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50]"
+          :total="filteredList.length"
+          layout="total, sizes, prev, pager, next"
+          background
+          @size-change="onPageSizeChange"
+          @current-change="onPageChange"
+        />
       </div>
     </div>
 
@@ -109,10 +106,10 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="班级" required>
-              <el-select v-model="form.className" style="width:100%">
-                <el-option label="1班" value="1班" />
-                <el-option label="2班" value="2班" />
-                <el-option label="3班" value="3班" />
+              <el-select v-model="form.className" placeholder="请选择班级" style="width:100%">
+                <el-option label="一班" value="一班" />
+                <el-option label="二班" value="二班" />
+                <el-option label="三班" value="三班" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -344,18 +341,21 @@ const store = useTrainingCourseStore()
 const filterClass = ref('all')
 const filterStatus = ref('all')
 
+const onFilterChange = () => { currentPage.value = 1 }
+
+// 直接基于 store.courses 计算筛选后的列表，确保响应式正确
 const filteredList = computed(() => {
   let list = [...store.courses]
-  if (filterClass.value !== 'all') {
-    list = list.filter(c => (c as any).className === filterClass.value)
-  }
+  // 状态筛选
   if (filterStatus.value !== 'all') {
     list = list.filter(c => c.status === filterStatus.value)
   }
+  // 班级筛选
+  if (filterClass.value !== 'all') {
+    list = list.filter(c => (c as any).className === filterClass.value)
+  }
   return list
 })
-
-const onFilterChange = () => { currentPage.value = 1 }
 
 // ==================== 分页 ====================
 const currentPage = ref(1)
@@ -366,7 +366,7 @@ const currentPageData = computed(() => {
   return filteredList.value.slice(s, s + pageSize.value)
 })
 
-const onPageSizeChange = () => { currentPage.value = 1 }
+const onPageSizeChange = (size: number) => { pageSize.value = size; currentPage.value = 1 }
 const onPageChange = (p: number) => { currentPage.value = p }
 
 // ==================== 辅助 ====================
@@ -403,7 +403,7 @@ const defaultFlexibleTime = (): FlexibleTimeData => ({
 })
 
 const form = reactive<CourseForm>({
-  name: '', className: '1班',
+  name: '', className: '',
   description: '', instructor: '',
   timeType: 'fixed',
   startTime: '', endTime: '',
@@ -450,7 +450,7 @@ const onTimeTypeChange = () => {
 }
 
 const resetForm = () => {
-  form.name = ''; form.className = '1班'
+  form.name = ''; form.className = ''
   form.description = ''; form.instructor = ''
   form.timeType = 'fixed'
   form.startTime = ''; form.endTime = ''
@@ -607,6 +607,7 @@ const handleSave = async () => {
   store.updateCourse(editId.value, { ...data, updatedAt: new Date().toLocaleString('zh-CN') })
   saveLoading.value = false
   dialogVisible.value = false
+  currentPage.value = 1
   ElMessage.success('已保存编辑进度')
 }
 
@@ -618,6 +619,7 @@ const handleSaveDraft = async () => {
   store.addCourse({ ...data, status: 'draft', registrationStatus: 'not_started' })
   saveLoading.value = false
   dialogVisible.value = false
+  currentPage.value = 1
   ElMessage.success('已存为草稿')
 }
 
@@ -649,12 +651,14 @@ const doPublish = () => {
   saveLoading.value = false
   confirmVisible.value = false
   pendingPublishTarget = null
+  currentPage.value = 1
 }
 
 const handleDelete = async (row: Course) => {
   try {
     await ElMessageBox.confirm('确定删除该课程？', '提示', { type: 'warning' })
     await store.deleteCourse(row.id)
+    currentPage.value = 1
     ElMessage.success('已删除')
   } catch { /* canceled */ }
 }

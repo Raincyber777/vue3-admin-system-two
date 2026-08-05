@@ -1,10 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { createCourse, updateCourseApi, deleteCourseApi, getCourseList, getCourseDetail, updateCourseStatus, type ApiCourseItem, type CourseDetail } from '@/api/course'
-import { pick, readStorage, writeStorage, createDeletedIdsManager, parseListResponse, now, generateTempId } from '@/utils/common'
-
-const deletedCourseNames = createDeletedIdsManager('deletedCourseNames')
+import { createCourse, updateCourseApi, deleteCourseApi, getCourseList, getCourseDetail, updateCourseStatus, type CourseDetail } from '@/api/course'
+import { parseListResponse, cnClassToArabic, classToCount } from '@/utils/common'
 
 export type CourseStatus = 'draft' | 'pending' | 'published' | 'ended'
 export type RegistrationStatus = 'not_started' | 'ongoing' | 'ended'
@@ -55,14 +53,11 @@ export const COURSE_TAG_OPTIONS = ['入门基础', '进阶提升', '实战项目
 const STATUS_TEXT: Record<CourseStatus, string> = { draft: '草稿', pending: '待发布', published: '已发布', ended: '已结束' }
 const REGISTRATION_STATUS_TEXT: Record<RegistrationStatus, string> = { not_started: '未开始', ongoing: '报名中', ended: '已结束' }
 
-const DEFAULT_COURSES: Course[] = []
-
 export const useTrainingCourseStore = defineStore('trainingCourse', () => {
   const courses = ref<Course[]>([])
   const total = ref(0)
   const loading = ref(false)
-  const error = ref<string | null>(null)
-  const useApi = ref(false)
+  const error = ref('')
 
   const activeFilter = ref('all')
   const searchKeyword = ref('')
@@ -117,80 +112,86 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     return `${start} ～ ${end}`
   }
 
-  const saveToStorage = () => writeStorage('training_courses', courses.value)
-  const loadFromStorage = () => {
-    try {
-      const stored = readStorage<any[]>('training_courses', [])
-      if (Array.isArray(stored) && stored.length > 0) courses.value = stored
-    } catch (error) { console.error('Failed to load courses from localStorage:', error) }
+  /** 将 API 返回的课程项映射为前端 Course（API 字段为驼峰） */
+  const mapCourseItem = (item: any): Course => {
+    // 后端返回 groups 字段，如 "一班"、"二班"，需要转换为前端格式 "1班"、"2班"
+    const rawGroups = item.groups || item.groupName || item.group_name || item.className || item.class_name || ''
+    const className = cnClassToArabic(rawGroups)
+
+    return {
+      id: String(item.courseId ?? ''),
+      name: item.courseName || '',
+      status: (item.status === 1 ? 'published' : 'draft') as CourseStatus,
+      registrationStatus: 'ongoing' as RegistrationStatus,
+      trainingTargets: [],
+      maxParticipants: item.maxSign ?? 50,
+      currentParticipants: item.signCount ?? 0,
+      timeType: 'fixed' as const,
+      startTime: item.startTime || '待定',
+      endTime: item.endTime || '待定',
+      flexibleTime: undefined,
+      trainingLocation: item.location || '待定',
+      instructor: item.instructor || '待定',
+      className,
+      prerequisites: '',
+      courseTags: [],
+      description: item.courseDesc || item.description || '',
+      coverImg: item.coverImg || '',
+      chapters: [],
+      linkedAttendance: false,
+      linkedScore: false,
+      linkedAnnouncement: false,
+      createdAt: item.createTime || '',
+      updatedAt: item.createTime || '',
+      publishedAt: item.status === 1 ? item.createTime : undefined,
+      department: 'software',
+    }
   }
 
   const fetchCourses = async () => {
     loading.value = true
-    error.value = null
+    error.value = ''
     try {
-      const res: any = await getCourseList()
+      const res: any = await getCourseList({ page: 1, size: 100 })
       const list = parseListResponse(res)
-      courses.value = list.map((item: any) => ({
-        id: String(pick(item, 'course_id', '') as string),
-        name: pick(item, 'course_name', '') as string,
-        status: (pick(item, 'status', 0) === 1 ? 'published' : 'draft') as CourseStatus,
-        registrationStatus: 'ongoing' as RegistrationStatus,
-        trainingTargets: [],
-        maxParticipants: pick(item, 'max_sign', 50) as number,
-        currentParticipants: pick(item, 'sign_count', 0) as number,
-        timeType: (pick(item, 'course_date', 'courseDate') ? 'flexible' : 'fixed') as 'fixed' | 'flexible',
-        startTime: pick(item, 'start_time', '待定') as string,
-        endTime: pick(item, 'end_time', '待定') as string,
-        flexibleTime: pick(item, 'course_date', 'courseDate') ? { startDate: pick(item, 'start_time', '') as string, endDate: pick(item, 'end_time', '') as string, weekdays: [], startTime: '', endTime: '' } : undefined,
-        trainingLocation: pick(item, 'location', '待定') as string,
-        instructor: pick(item, 'instructor', '待定') as string,
-        className: (pick(item, 'class_name', '') || pick(item, 'className', '')) as string,
-        prerequisites: '',
-        courseTags: [],
-        description: pick(item, 'course_desc', '') as string,
-        chapters: [],
-        linkedAttendance: false,
-        linkedScore: false,
-        linkedAnnouncement: false,
-        createdAt: pick(item, 'create_time', '') as string,
-        updatedAt: pick(item, 'create_time', '') as string,
-        publishedAt: pick(item, 'status', 0) === 1 ? pick(item, 'create_time', '') as string : undefined,
-      } as Course))
+      courses.value = list.map(mapCourseItem)
+      total.value = courses.value.length
     } catch (err: any) {
       console.warn('获取课程列表失败:', err)
       error.value = err.message || '获取课程列表失败'
     } finally {
-      total.value = courses.value.length
       loading.value = false
     }
   }
 
   const addCourse = async (data: Omit<Course, 'id' | 'createdAt' | 'updatedAt'>) => {
     loading.value = true
-    error.value = null
-
+    error.value = ''
     try {
-      const res: any = await createCourse({
+      // 将前端班级名 "1班" 转为数字 1，作为 groupCount 参数
+      const groupCount = classToCount(data.className || '')
+      const payload = {
         courseName: data.name,
         courseDesc: data.description,
         coverImg: (data as any).coverImg || undefined,
         startTime: data.startTime || undefined,
         endTime: data.endTime || undefined,
         maxSign: data.maxParticipants || 50,
+        instructor: data.instructor || undefined,
+        location: data.trainingLocation || undefined,
+        groupCount,
         timeType: data.timeType,
         flexibleTime: data.flexibleTime,
         courseDate: data.timeType === 'flexible' ? formatFlexibleTimeForApi(data.flexibleTime) : undefined,
-      })
-
-      const backendId = pick(res?.data, 'courseId', 'course_id', 'id', null) ?? pick(res, 'courseId', 'id', null)
-      const course: Course = { ...data, id: String(backendId || ''), createdAt: now(), updatedAt: now() }
-      courses.value.unshift(course)
+      }
+      await createCourse(payload)
       await fetchCourses()
       return true
     } catch (err: any) {
       console.error('创建课程失败:', err)
       error.value = err.message || '创建课程失败'
+      ElMessage.error(error.value)
+      return false
     } finally {
       loading.value = false
     }
@@ -198,8 +199,10 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
 
   const updateCourse = async (id: string, data: Partial<Course>) => {
     loading.value = true
-    error.value = null
+    error.value = ''
     try {
+      // 将前端班级名 "1班" 转为数字 1，作为 groupCount 参数
+      const groupCount = classToCount(data.className || '')
       await updateCourseApi(id, {
         courseName: data.name,
         courseDesc: data.description,
@@ -207,16 +210,15 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
         startTime: data.startTime || undefined,
         endTime: data.endTime || undefined,
         maxSign: data.maxParticipants,
+        instructor: data.instructor || undefined,
+        location: data.trainingLocation || undefined,
+        groupCount,
         timeType: data.timeType,
         flexibleTime: data.flexibleTime,
         courseDate: data.timeType === 'flexible' ? formatFlexibleTimeForApi(data.flexibleTime) : undefined,
       })
-      const index = courses.value.findIndex(c => c.id === id)
-      if (index !== -1) {
-        courses.value[index] = { ...courses.value[index], ...data, updatedAt: now() }
-        if (data.status === 'published' && !courses.value[index].publishedAt) courses.value[index].publishedAt = now()
-    
-      }
+      await fetchCourses()
+      ElMessage.success('课程已更新')
       return true
     } catch (err: any) {
       console.error('更新课程失败:', err)
@@ -230,13 +232,15 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
 
   const deleteCourse = async (id: string) => {
     loading.value = true
-    error.value = null
+    error.value = ''
     try {
       await deleteCourseApi(id)
-      courses.value = courses.value.filter(c => c.id !== id)
+      await fetchCourses()
+      ElMessage.success('课程已删除')
     } catch (err: any) {
       console.warn('删除课程失败:', err)
       error.value = err.message || '删除失败'
+      ElMessage.error(error.value)
     } finally {
       loading.value = false
     }
@@ -245,7 +249,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
 
   const publishCourse = async (id: string) => {
     loading.value = true
-    error.value = null
+    error.value = ''
     try {
       await updateCourseStatus(id, 1)
       await fetchCourses()
@@ -260,7 +264,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
 
   const unpublishCourse = async (id: string) => {
     loading.value = true
-    error.value = null
+    error.value = ''
     try {
       await updateCourseStatus(id, 0)
       await fetchCourses()
@@ -275,20 +279,13 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
 
   const endCourse = async (id: string) => {
     loading.value = true
-    error.value = null
+    error.value = ''
     try {
       const course = courses.value.find(c => c.id === id)
       if (!course) return false
       if (course.status !== 'published') { ElMessage.warning('只能结束已发布的课程'); return false }
-
-      const numericId = /^\d+$/.test(id) ? id : null
-      if (numericId) { try { await updateCourseStatus(id, 0) } catch (err) { console.warn('结束课程 API 失败:', err) } }
-
-      const index = courses.value.findIndex(c => c.id === id)
-      if (index !== -1) {
-        courses.value[index] = { ...courses.value[index], status: 'ended', registrationStatus: 'ended', updatedAt: now() }
-    
-      }
+      await updateCourseStatus(id, 0)
+      await fetchCourses()
       return true
     } catch (err: any) {
       console.error('结束课程失败:', err)
@@ -307,32 +304,33 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       const res: any = await getCourseDetail(id)
       const d: CourseDetail = res.data || res
       if (d) {
-        const local = getCourseById(id)
-        const hasFlexibleTime = (d as any).course_date || (d as any).courseDate
+        // 后端返回 groups 字段，如 "一班"，需要转换为前端格式 "1班"
+        const rawGroups = (d as any).groups || (d as any).groupName || (d as any).group_name || (d as any).className || (d as any).class_name || ''
         return {
-          id: String(d.course_id),
-          name: d.course_name,
-          status: d.status === 1 ? 'published' : 'draft',
-          registrationStatus: 'ongoing',
-          trainingTargets: local?.trainingTargets || [],
-          maxParticipants: d.max_sign || 50,
-          currentParticipants: d.sign_count || 0,
-          timeType: hasFlexibleTime ? 'flexible' : (local?.timeType || 'fixed'),
-          startTime: d.start_time || local?.startTime || '待定',
-          endTime: d.end_time || local?.endTime || '待定',
-          flexibleTime: local?.flexibleTime,
-          trainingLocation: local?.trainingLocation || '待定',
-          instructor: local?.instructor || '待定',
-          prerequisites: local?.prerequisites || '',
-          courseTags: local?.courseTags || [],
-          description: d.course_desc || local?.description || '',
-          chapters: local?.chapters || [],
-          linkedAttendance: local?.linkedAttendance ?? false,
-          linkedScore: local?.linkedScore ?? false,
-          linkedAnnouncement: local?.linkedAnnouncement ?? false,
-          createdAt: d.create_time || '',
-          updatedAt: d.create_time || '',
-          publishedAt: d.status === 1 ? d.create_time : undefined,
+          id: String(d.course_id || (d as any).courseId || ''),
+          name: d.course_name || (d as any).courseName || '',
+          status: (d.status === 1 ? 'published' : 'draft') as CourseStatus,
+          registrationStatus: 'ongoing' as RegistrationStatus,
+          trainingTargets: [],
+          maxParticipants: d.max_sign || (d as any).maxSign || 50,
+          currentParticipants: d.sign_count || (d as any).signCount || 0,
+          timeType: 'fixed' as const,
+          startTime: d.start_time || (d as any).startTime || '待定',
+          endTime: d.end_time || (d as any).endTime || '待定',
+          flexibleTime: undefined,
+          trainingLocation: (d as any).location || '待定',
+          instructor: (d as any).instructor || '待定',
+          className: cnClassToArabic(rawGroups),
+          prerequisites: '',
+          courseTags: [],
+          description: d.course_desc || (d as any).courseDesc || '',
+          coverImg: (d as any).coverImg || '',
+          chapters: [],
+          linkedAttendance: false, linkedScore: false, linkedAnnouncement: false,
+          createdAt: d.create_time || (d as any).createTime || '',
+          updatedAt: d.create_time || (d as any).createTime || '',
+          publishedAt: d.status === 1 ? (d.create_time || (d as any).createTime) : undefined,
+          department: 'software',
         }
       }
     } catch (error) { console.warn('获取课程详情失败:', error) }
@@ -345,7 +343,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
   const setPageSize = (size: number) => { pageSize.value = size; currentPage.value = 1 }
 
   return {
-    courses, total, loading, error, useApi,
+    courses, total, loading, error,
     activeFilter, searchKeyword, currentPage, pageSize,
     stats, filteredCourses,
     TRAINING_TARGET_OPTIONS, COURSE_TAG_OPTIONS,
@@ -354,6 +352,6 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     getCourseById, fetchCourseDetail,
     getStatusText, getStatusType, getRegistrationStatusText, getRegistrationStatusType,
     getTrainingTargetsLabel, formatTimeRange,
-    loadFromStorage, setActiveFilter, setSearchKeyword, setPage, setPageSize
+    setActiveFilter, setSearchKeyword, setPage, setPageSize
   }
 })

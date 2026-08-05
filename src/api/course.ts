@@ -13,9 +13,12 @@ export interface CreateCourseParams {
   endTime?: string
   maxSign?: number
   className?: string
+  groupName?: string
   department?: string
   instructor?: string
-  trainingLocation?: string
+  location?: string
+  groupCount?: number
+  groups?: string
   /** 时间类型：fixed=起始时间，flexible=弹性时间 */
   timeType?: 'fixed' | 'flexible'
   /** 弹性时间配置 */

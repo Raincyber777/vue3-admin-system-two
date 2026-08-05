@@ -13,9 +13,9 @@
     <div class="toolbar-card">
       <el-radio-group v-model="filterClass" size="small" style="margin-left:12px" @change="onFilterChange">
         <el-radio-button value="all">全部班级</el-radio-button>
-        <el-radio-button value="1班">1班</el-radio-button>
-        <el-radio-button value="2班">2班</el-radio-button>
-        <el-radio-button value="3班">3班</el-radio-button>
+        <el-radio-button value="一班">一班</el-radio-button>
+        <el-radio-button value="二班">二班</el-radio-button>
+        <el-radio-button value="三班">三班</el-radio-button>
       </el-radio-group>
       <el-radio-group v-model="filterStatus" size="small" style="margin-left:12px" @change="onFilterChange">
         <el-radio-button value="all">全部状态</el-radio-button>
@@ -123,10 +123,10 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="班级" required>
-              <el-select v-model="createForm.className" style="width:100%">
-                <el-option label="1班" value="1班" />
-                <el-option label="2班" value="2班" />
-                <el-option label="3班" value="3班" />
+              <el-select v-model="createForm.className" placeholder="请选择班级" style="width:100%">
+                <el-option label="一班" value="一班" />
+                <el-option label="二班" value="二班" />
+                <el-option label="三班" value="三班" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -256,12 +256,12 @@ const onPageChange = (p: number) => { currentPage.value = p }
 const createVisible = ref(false)
 const createLoading = ref(false)
 const createForm = reactive({
-  title: '', courseId: null as number | null, courseName: '', className: '1班', endTime: '',
+  title: '', courseId: null as number | null, courseName: '', className: '', endTime: '',
 })
 
 const openCreateDialog = () => {
   createForm.title = ''; createForm.courseId = null; createForm.courseName = ''
-  createForm.className = '1班'; createForm.endTime = ''
+  createForm.className = ''; createForm.endTime = ''
   loadCourseOptions()
   createVisible.value = true
 }

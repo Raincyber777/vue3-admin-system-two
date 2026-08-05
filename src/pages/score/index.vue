@@ -9,9 +9,9 @@
       <div class="toolbar-left">
         <el-radio-group v-model="filterClass" size="small" style="margin-left:16px" @change="onFilterChange">
           <el-radio-button value="all">全部班级</el-radio-button>
-          <el-radio-button value="1班">1班</el-radio-button>
-          <el-radio-button value="2班">2班</el-radio-button>
-          <el-radio-button value="3班">3班</el-radio-button>
+          <el-radio-button value="一班">一班</el-radio-button>
+          <el-radio-button value="二班">二班</el-radio-button>
+          <el-radio-button value="三班">三班</el-radio-button>
         </el-radio-group>
         </div>
         <div class="toolbar-center">

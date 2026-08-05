@@ -128,3 +128,62 @@ export const toQueryParams = (obj: Record<string, any>): Record<string, any> => 
   }
   return result
 }
+
+/**
+ * 班级名称转换：中文数字 ↔ 阿拉伯数字
+ * 后端返回格式：一班、二班、三班
+ * 前端使用格式：1班、2班、3班
+ */
+const CN_NUM_MAP: Record<string, string> = {
+  '一': '1', '二': '2', '三': '3', '四': '4', '五': '5',
+  '六': '6', '七': '7', '八': '8', '九': '9', '十': '10',
+}
+
+const ARABIC_TO_CN: Record<string, string> = {
+  '1': '一', '2': '二', '3': '三', '4': '四', '5': '五',
+  '6': '六', '7': '七', '8': '八', '9': '九', '10': '十',
+}
+
+/** 将中文数字班级名转为阿拉伯数字 (一班 -> 1班) */
+export const cnClassToArabic = (className: string): string => {
+  if (!className) return ''
+  // 匹配 "一班"、"二班" 等格式
+  const match = className.match(/^([一二三四五六七八九十]+)(班|组|级)$/)
+  if (match) {
+    const cnNum = match[1]
+    const suffix = match[2]
+    const arabicNum = CN_NUM_MAP[cnNum] || cnNum
+    return `${arabicNum}${suffix}`
+  }
+  return className
+}
+
+/** 将阿拉伯数字班级名转为中文数字 (1班 -> 一班) */
+export const arabicClassToCn = (className: string): string => {
+  if (!className) return ''
+  // 匹配 "1班"、"2班" 等格式
+  const match = className.match(/^(\d+)(班|组|级)$/)
+  if (match) {
+    const arabicNum = match[1]
+    const suffix = match[2]
+    const cnNum = ARABIC_TO_CN[arabicNum] || arabicNum
+    return `${cnNum}${suffix}`
+  }
+  return className
+}
+
+/** 将班级名转为数字 (1班 -> 1, 一班 -> 1) */
+export const classToCount = (className: string): number | undefined => {
+  if (!className) return undefined
+  // 匹配 "1班"、"2班" 等阿拉伯数字格式
+  const arabicMatch = className.match(/^(\d+)(班|组|级)$/)
+  if (arabicMatch) return parseInt(arabicMatch[1])
+  // 匹配 "一班"、"二班" 等中文数字格式
+  const cnMatch = className.match(/^([一二三四五六七八九十]+)(班|组|级)$/)
+  if (cnMatch) {
+    const cnNum = cnMatch[1]
+    const arabicNum = CN_NUM_MAP[cnNum]
+    return arabicNum ? parseInt(arabicNum) : undefined
+  }
+  return undefined
+}
