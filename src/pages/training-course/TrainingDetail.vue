@@ -95,8 +95,8 @@ const onPageChange = (p: number) => { currentPage.value = p }
 const handleExport = async () => {
   exportLoading.value = true
   try {
-    const gid = filterClass.value !== 'all' ? filterClass.value : ''
-    const res = await exportClassList(String(gid))
+    const gid = filterClass.value !== 'all' ? (classGroupMap[filterClass.value] || '') : ''
+    const res = await exportClassList(gid)
     const rawList = (res as any).data?.list || (res as any).list || []
     const exportData = rawList.map((item: any, i: number) => ({
       '序号': i + 1,
