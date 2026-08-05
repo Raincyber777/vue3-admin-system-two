@@ -115,8 +115,11 @@ const handleLogin = async () => {
       password: password.value,
     })
     if (result.success) {
+      // 登录成功后，获取完整的用户信息（包括实验室名称、权限等）
+      await authStore.fetchUserInfo()
+      
       sessionStorage.setItem('auth', JSON.stringify({ isAuthenticated: true }))
-      ElMessage.success('登录成功！')
+      ElMessage.success(`登录成功！欢迎 ${authStore.currentLabName || ''}管理员`)
       router.push('/application')
     } else {
       ElMessage.error(result.message || '登录失败')

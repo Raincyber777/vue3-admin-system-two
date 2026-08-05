@@ -1,7 +1,27 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const isAuthenticated = () => {
   return !!localStorage.getItem('token')
+}
+
+// 从 localStorage 恢复菜单权限
+const getStoredMenus = () => {
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || 'null')
+    return userInfo?.menus || []
+  } catch {
+    return []
+  }
+}
+
+// 检查菜单权限
+const hasMenuPermission = (path) => {
+  const menus = getStoredMenus()
+  // 如果 menus 为空，默认允许访问所有菜单（向后兼容）
+  if (menus.length === 0) return true
+  // 检查路径是否在权限列表中
+  return menus.some(menu => path.startsWith(menu))
 }
 
 const router = createRouter({
@@ -95,6 +115,18 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresAuth && !isAuthenticated()) {
     next('/login')
+    return
+  }
+
+  // 检查菜单权限（仅对需要认证的页面）
+  if (to.meta.requiresAuth && !hasMenuPermission(to.path)) {
+    // 没有权限，跳转到第一个有权限的页面或 404 页面
+    const menus = getStoredMenus()
+    if (menus.length > 0) {
+      next(menus[0])
+    } else {
+      next('/application')
+    }
     return
   }
 

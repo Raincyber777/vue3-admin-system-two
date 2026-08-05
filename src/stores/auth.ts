@@ -9,6 +9,46 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
 
+  // 当前实验室名称（兼容 camelCase 和 snake_case）
+  const currentLabName = computed(() => {
+    return userInfo.value?.labName || userInfo.value?.lab_name || ''
+  })
+
+  // 当前实验室 ID
+  const currentLabId = computed(() => {
+    return userInfo.value?.labId || userInfo.value?.lab_id
+  })
+
+  // 当前角色列表
+  const roles = computed<string[]>(() => {
+    if (userInfo.value?.roles) return userInfo.value.roles
+    // 兼容单个 role 字段
+    if (userInfo.value?.role) return [userInfo.value.role]
+    return []
+  })
+
+  // 当前权限列表
+  const permissions = computed<string[]>(() => {
+    return userInfo.value?.permissions || []
+  })
+
+  // 当前菜单权限列表
+  const menus = computed<string[]>(() => {
+    return userInfo.value?.menus || []
+  })
+
+  // 规范化用户信息（处理 camelCase / snake_case 混用）
+  const normalizeUserInfo = (info: any): UserInfo => {
+    return {
+      ...info,
+      labId: info.labId ?? info.lab_id,
+      labName: info.labName ?? info.lab_name,
+      roles: info.roles ?? (info.role ? [info.role] : []),
+      permissions: info.permissions ?? [],
+      menus: info.menus ?? [],
+    }
+  }
+
   const setToken = (newToken: string, newRefreshToken?: string) => {
     token.value = newToken
     localStorage.setItem('token', newToken)
@@ -19,8 +59,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const setUserInfo = (info: UserInfo) => {
-    userInfo.value = info
-    localStorage.setItem('userInfo', JSON.stringify(info))
+    const normalized = normalizeUserInfo(info)
+    userInfo.value = normalized
+    localStorage.setItem('userInfo', JSON.stringify(normalized))
   }
 
   const clearAuth = () => {
@@ -38,8 +79,19 @@ export const useAuthStore = defineStore('auth', () => {
     const payload = (res as any).data
     if (payload?.accessToken) {
       setToken(payload.accessToken, payload.refreshToken || payload.refresh_token)
-      const info = payload.user || payload.userInfo || payload.user_info
-      if (info) setUserInfo(info)
+      const info = payload.user || payload.userInfo || payload.user_info || payload
+      if (info) {
+        const newLabId = info.labId || info.lab_id
+        const oldLabInfo = userInfo.value
+        const oldLabId = oldLabInfo?.labId || oldLabInfo?.lab_id
+
+        // 首次登录或实验室发生变化时，清除旧实验室的本地缓存数据
+        if (!oldLabId || (newLabId && String(oldLabId) !== String(newLabId))) {
+          clearLabDataCache()
+        }
+
+        setUserInfo(info as UserInfo)
+      }
       return { success: true }
     }
     return { success: false, message: (res as any).message || '登录失败' }
@@ -52,6 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
       // 忽略错误
     }
     clearAuth()
+    clearLabDataCache()  // 登出时也清除实验室数据缓存
   }
 
   const fetchUserInfo = async () => {
@@ -60,11 +113,22 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await getUserProfile()
       const payload = (res as any).data || res
       if (payload) {
-        setUserInfo(payload as UserInfo)
+        // 确保兼容各种后端字段格式
+        const normalizedInfo: any = {
+          ...payload,
+          labId: payload.labId ?? payload.lab_id ?? payload.labID,
+          labName: payload.labName ?? payload.lab_name ?? payload.labNameCn ?? payload.lab,
+          roles: payload.roles ?? (payload.role ? [payload.role] : []),
+          permissions: payload.permissions ?? [],
+          menus: payload.menus ?? [],
+        }
+
+        console.log('[Auth] ✅ labName:', normalizedInfo.labName, '| labId:', normalizedInfo.labId, '| roles:', normalizedInfo.roles, '| permissions:', normalizedInfo.permissions)
+        setUserInfo(normalizedInfo as UserInfo)
       }
       return true
-    } catch {
-      console.error('获取用户信息失败')
+    } catch (error) {
+      console.error('[Auth] 获取用户信息失败:', error)
       return false
     }
   }
@@ -74,16 +138,82 @@ export const useAuthStore = defineStore('auth', () => {
     return res
   }
 
+  // 清除实验室相关的本地缓存数据（切换实验室时调用）
+  const clearLabDataCache = () => {
+    // 需要清除的本地缓存 key 列表
+    const cacheKeys = [
+      'adminUsers',
+      'studentRecords',
+      'announcements',
+      'adminLogs',
+      'localReviewStatus',
+      'courseList',
+      'signinList',
+      'homeworkList',
+      'trainingCourses',
+      'signinSessions',
+      'deletedCheckinIds',
+      'localHomeworks',
+      'gradingSubmissions',
+      'deletedHomeworkIds',
+      'deletedSubmitIds',
+      'training_courses',
+      'deletedCourseNames',
+      'studentRecords',
+    ]
+    cacheKeys.forEach(key => {
+      localStorage.removeItem(key)
+    })
+  }
+
+  // 权限判断方法
+  const hasRole = (role: string): boolean => {
+    return roles.value.includes(role)
+  }
+
+  const hasAnyRole = (roleList: string[]): boolean => {
+    return roleList.some(role => roles.value.includes(role))
+  }
+
+  const hasPermission = (permission: string): boolean => {
+    // 如果 permissions 为空，默认放行（向后兼容）
+    if (permissions.value.length === 0) return true
+    return permissions.value.includes(permission)
+  }
+
+  const hasAnyPermission = (permissionList: string[]): boolean => {
+    // 如果 permissions 为空，默认放行
+    if (permissions.value.length === 0) return true
+    return permissionList.some(perm => permissions.value.includes(perm))
+  }
+
+  const hasMenu = (menuPath: string): boolean => {
+    // 如果 menus 为空，默认显示所有菜单（向后兼容）
+    if (menus.value.length === 0) return true
+    return menus.value.includes(menuPath)
+  }
+
   return {
     token,
     userInfo,
     isAuthenticated,
+    currentLabName,
+    currentLabId,
+    roles,
+    permissions,
+    menus,
     setToken,
     setUserInfo,
     clearAuth,
+    clearLabDataCache,
     login,
     logout,
     fetchUserInfo,
-    changePassword
+    changePassword,
+    hasRole,
+    hasAnyRole,
+    hasPermission,
+    hasAnyPermission,
+    hasMenu,
   }
 })

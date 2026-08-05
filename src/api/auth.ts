@@ -20,6 +20,15 @@ export interface UserInfo {
   college?: string
   major?: string
   class_name?: string
+  // 多实验室支持
+  labId?: number | string
+  labName?: string
+  lab_id?: number | string
+  lab_name?: string
+  // 权限控制
+  roles?: string[]
+  permissions?: string[]
+  menus?: string[]
 }
 
 // 登录响应数据

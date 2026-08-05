@@ -9,7 +9,10 @@
         </div>
         <div class="header-text">
           <h1>{{ title }}</h1>
-          <p class="header-subtitle">{{ subtitle }}</p>
+          <p class="header-subtitle">
+            {{ subtitle || '' }}
+            <span v-if="labName" class="lab-tag">{{ labName }}</span>
+          </p>
         </div>
       </div>
       <div class="header-right">
@@ -20,12 +23,22 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Reading } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
+import { getLabDisplayName } from '@/utils/permission'
 
-defineProps<{
+const props = defineProps<{
   title: string
   subtitle?: string
 }>()
+
+const authStore = useAuthStore()
+
+// 动态获取实验室名称
+const labName = computed(() => {
+  return authStore.currentLabName || getLabDisplayName(authStore.currentLabId) || ''
+})
 </script>
 
 <style scoped>
@@ -112,6 +125,19 @@ defineProps<{
   margin: 4px 0 0 0;
   font-size: 13px;
   color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lab-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(33, 150, 243, 0.15);
+  color: #2196f3;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .header-right {

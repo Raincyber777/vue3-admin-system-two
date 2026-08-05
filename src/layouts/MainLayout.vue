@@ -17,8 +17,8 @@
           </div>
           <transition name="slide-fade">
             <div v-show="!isCollapse" class="logo-text">
-              <span class="logo-title">实验室招生系统</span>
-              <span class="logo-subtitle">Lab Admin</span>
+              <span class="logo-title">{{ labName }}</span>
+              <span class="logo-subtitle">{{ authStore.userInfo?.role || 'Lab Admin' }}</span>
             </div>
           </transition>
         </div>
@@ -35,67 +35,67 @@
         text-color="#334155"
         active-text-color="#2196f3"
       >
-        <el-menu-item index="/application">
+        <el-menu-item v-if="showMenu('/application')" index="/application">
           <div class="menu-icon-wrapper">
             <el-icon><FolderChecked /></el-icon>
           </div>
           <template #title>报名审核</template>
         </el-menu-item>
 
-        <el-menu-item index="/signin">
+        <el-menu-item v-if="showMenu('/signin')" index="/signin">
           <div class="menu-icon-wrapper">
             <el-icon><Clock /></el-icon>
           </div>
           <template #title>签到管理</template>
         </el-menu-item>
 
-        <el-menu-item index="/homework">
+        <el-menu-item v-if="showMenu('/homework')" index="/homework">
           <div class="menu-icon-wrapper">
             <el-icon><Notebook /></el-icon>
           </div>
           <template #title>作业发布</template>
         </el-menu-item>
 
-        <el-menu-item index="/grading">
+        <el-menu-item v-if="showMenu('/grading')" index="/grading">
           <div class="menu-icon-wrapper">
             <el-icon><EditPen /></el-icon>
           </div>
           <template #title>作业批改</template>
         </el-menu-item>
 
-        <el-menu-item index="/training-course">
+        <el-menu-item v-if="showMenu('/training-course')" index="/training-course">
           <div class="menu-icon-wrapper">
             <el-icon><Collection /></el-icon>
           </div>
           <template #title>课程管理</template>
         </el-menu-item>
 
-        <el-menu-item index="/training-detail">
+        <el-menu-item v-if="showMenu('/training-detail')" index="/training-detail">
           <div class="menu-icon-wrapper">
             <el-icon><Notebook /></el-icon>
           </div>
           <template #title>培训名单</template>
         </el-menu-item>
 
-        <el-menu-item index="/score">
+        <el-menu-item v-if="showMenu('/score')" index="/score">
           <div class="menu-icon-wrapper">
             <el-icon><Reading /></el-icon>
           </div>
           <template #title>学员表现</template>
         </el-menu-item>
 
-        <div class="menu-divider-wrapper">
+        <div class="menu-divider-wrapper" v-if="showMenu('/account') || showMenu('/personal')">
           <el-divider class="menu-divider" />
         </div>
 
-        <el-menu-item index="/account">
+        <el-menu-item v-if="showMenu('/account')" index="/account">
           <div class="menu-icon-wrapper">
             <el-icon><UserFilled /></el-icon>
           </div>
           <template #title>账号管理</template>
         </el-menu-item>
 
-        <el-menu-item index="/personal">
+        <el-menu-item v-if="showMenu('/personal')" index="/personal">
           <div class="menu-icon-wrapper">
             <el-icon><User /></el-icon>
           </div>
@@ -162,8 +162,8 @@
                 <el-icon><UserFilled /></el-icon>
               </el-avatar>
               <div class="user-text">
-                <span class="user-name">{{ authStore.currentUser?.name || userStore.userInfo.username }}</span>
-                <span class="user-role">超级管理员</span>
+                <span class="user-name">{{ authStore.userInfo?.name || userStore.userInfo.username }}</span>
+                <span class="user-role">{{ authStore.currentLabName }} · {{ authStore.roles.join('/') || '管理员' }}</span>
               </div>
               <el-icon class="arrow-icon"><ArrowDown /></el-icon>
             </div>
@@ -193,12 +193,13 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useAuthStore } from '@/stores/auth'
+import { getLabDisplayName } from '@/utils/permission'
 import {
   FolderChecked, Notebook, EditPen, Reading, User,
   HomeFilled, UserFilled, ArrowDown, SwitchButton, Collection, Clock
@@ -210,9 +211,24 @@ const isCollapse = ref(false)
 const userStore = useUserStore()
 const authStore = useAuthStore()
 
-onMounted(() => {
+onMounted(async () => {
   userStore.loadUserInfo()
+
+  // 页面加载时获取最新的用户信息（包括实验室名称）
+  if (authStore.isAuthenticated && !authStore.currentLabName) {
+    await authStore.fetchUserInfo()
+  }
 })
+
+// 实验室名称（动态显示）
+const labName = computed(() => {
+  return authStore.currentLabName || getLabDisplayName(authStore.currentLabId) || '实验室招生系统'
+})
+
+// 检查菜单是否显示
+const showMenu = (menuPath: string): boolean => {
+  return authStore.hasMenu(menuPath)
+}
 
 const activeMenu = computed(() => route.path)
 
