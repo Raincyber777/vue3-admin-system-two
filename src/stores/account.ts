@@ -19,14 +19,6 @@ export interface User {
   updatedAt: string
 }
 
-// 默认用户数据（本地假数据）
-const defaultUsers: User[] = [
-  { id: 1, username: 'admin', name: '管理员', email: 'admin@lab.edu.cn', role: 'admin', status: 'active', studentNo: '-', password: 'Admin@123', phone: '13800000000', department: 'software', className: '-', createdAt: '2024-01-01 00:00:00', updatedAt: '2024-01-01 00:00:00' },
-  { id: 2, username: 'zhangsan', name: '张三', email: 'zhangsan@lab.edu.cn', role: 'normal', status: 'active', studentNo: '20241450101', password: 'abc123456', phone: '13812345678', department: 'software', className: '1班', createdAt: '2024-03-15 10:30:00', updatedAt: '2024-06-20 14:00:00' },
-  { id: 3, username: 'lisi', name: '李四', email: 'lisi@lab.edu.cn', role: 'normal', status: 'active', studentNo: '20241450102', password: 'xyz789012', phone: '13998765432', department: 'software', className: '2班', createdAt: '2024-03-20 09:00:00', updatedAt: '2024-05-10 16:30:00' },
-  { id: 4, username: 'wangwu', name: '王五', email: 'wangwu@lab.edu.cn', role: 'normal', status: 'disabled', studentNo: '20241450103', password: 'pass11111', phone: '13611223344', department: 'software', className: '3班', createdAt: '2024-04-01 11:00:00', updatedAt: '2024-07-01 08:00:00' },
-  { id: 5, username: 'zhaoliu', name: '赵六', email: 'zhaoliu@lab.edu.cn', role: 'normal', status: 'active', studentNo: '20241450104', password: 'pwd222222', phone: '15088997766', department: 'software', className: '1班', createdAt: '2024-04-10 15:20:00', updatedAt: '2024-06-28 10:00:00' },
-]
 
 export const useAccountStore = defineStore('account', () => {
   // 规范化用户数据，防止旧数据缺少字段导致 undefined 报错
@@ -46,21 +38,8 @@ export const useAccountStore = defineStore('account', () => {
     updatedAt: u.updatedAt || u.updateTime || u.updated_at || u.update_time || '',
   })
 
-  const storedUsers = localStorage.getItem('adminUsers')
-  const rawUsers: any[] = storedUsers ? JSON.parse(storedUsers) : defaultUsers
-  const storedUsersArray: User[] = rawUsers.map(normalizeUser)
-  storedUsersArray.sort((a: User, b: User) => {
-    if (a.role === 'admin' && b.role !== 'admin') return -1
-    if (a.role !== 'admin' && b.role === 'admin') return 1
-    return a.id - b.id
-  })
-  const users = ref<User[]>(storedUsersArray)
-
+  const users = ref<User[]>([])
   const total = computed(() => users.value.length)
-
-  const saveUsers = () => {
-    localStorage.setItem('adminUsers', JSON.stringify(users.value))
-  }
 
   /** 将后端用户字段映射为前端 User
    *  后端实际字段：userId, username, realName, studentId, college, major, grade, phone, email, status(1/0), createTime */
@@ -83,68 +62,19 @@ export const useAccountStore = defineStore('account', () => {
     updatedAt: item.updateTime || item.updatedAt || item.updated_at || item.update_time || '',
   })
 
-  /** 获取用户列表（API 优先，失败降级本地） */
-  async function fetchUsers(params?: {
-    academy?: string
-    major?: string
-    search?: string
-    limit?: number
-    offset?: number
-  }): Promise<User[]> {
-    // 优先调用后端 API
+  /** 获取用户列表（纯 API） */
+  async function fetchUsers(): Promise<User[]> {
     try {
       const res: any = await getUserList()
       const data = res.data || res
       const list = data?.list || data?.records || (Array.isArray(data) ? data : [])
-      if (list.length > 0) {
-        const mapped: User[] = list.map(mapUserItem)
-        // 合并：API 数据优先，仅保留本地特有的 password 字段
-        const merged = mapped.map((u: User) => {
-          const existing = users.value.find(e =>
-            e.id === u.id || e.email === u.email || e.username === u.username
-          )
-          if (existing) {
-            return {
-              ...u,
-              password: existing.password || u.password,
-              // API 有值就用 API，否则保留本地
-              name: u.name || existing.name,
-              className: u.className || existing.className,
-              createdAt: u.createdAt || existing.createdAt,
-              studentNo: u.studentNo || existing.studentNo,
-              phone: u.phone || existing.phone,
-            }
-          }
-          return u
-        })
-        users.value = merged
-        saveUsers()
-        return merged
-      }
+      users.value = list.map(mapUserItem)
+      return users.value
     } catch (error) {
-      console.warn('获取用户列表接口失败，使用本地数据:', error)
+      console.warn('获取用户列表失败:', error)
+      users.value = []
+      return []
     }
-
-    // 降级：本地数据筛选
-    let data = [...users.value]
-    if (params?.search) {
-      const keyword = params.search.toLowerCase()
-      data = data.filter(u =>
-        u.username.toLowerCase().includes(keyword) ||
-        u.email.toLowerCase().includes(keyword)
-      )
-    }
-    data.sort((a: User, b: User) => {
-      if (a.role === 'admin' && b.role !== 'admin') return -1
-      if (a.role !== 'admin' && b.role === 'admin') return 1
-      return a.id - b.id
-    })
-    if (params?.offset !== undefined) {
-      const offset = params.offset
-      const limit = params.limit ?? data.length
-      data = data.slice(offset, offset + limit)
-    }
-    return data
   }
 
   /** 获取用户详情（API 优先，失败降级本地查找） */
@@ -171,7 +101,8 @@ export const useAccountStore = defineStore('account', () => {
     const index = users.value.findIndex(u => u.id === id)
     if (index !== -1) {
       users.value.splice(index, 1)
-      saveUsers()
+  
+
       return true
     }
     return false
@@ -182,7 +113,8 @@ export const useAccountStore = defineStore('account', () => {
     try { await batchDeleteUsersApi(ids) } catch { console.warn('批量删除用户接口失败') }
     const idSet = new Set(ids)
     users.value = users.value.filter(u => !idSet.has(u.id))
-    saveUsers()
+
+
     return true
   }
 
@@ -264,7 +196,8 @@ export const useAccountStore = defineStore('account', () => {
           createdAt: now, updatedAt: now,
         })
       })
-      saveUsers()
+  
+
       return true
     } catch (error) {
       console.error('导入用户失败:', error)
@@ -304,7 +237,8 @@ export const useAccountStore = defineStore('account', () => {
     // 优先用后端 ID，否则生成本地 ID
     const newId = backendId ?? (Math.max(...users.value.map(u => u.id), 0) + 1)
     users.value.unshift({ ...user, id: newId, createdAt: now, updatedAt: now })
-    saveUsers()
+
+
   }
 
   /** 更新用户（本地） */
@@ -312,7 +246,8 @@ export const useAccountStore = defineStore('account', () => {
     const index = users.value.findIndex(u => u.id === id)
     if (index !== -1) {
       users.value[index] = { ...users.value[index], ...updates, updatedAt: new Date().toLocaleString('zh-CN') }
-      saveUsers()
+  
+
     }
   }
 
@@ -331,7 +266,8 @@ export const useAccountStore = defineStore('account', () => {
 
     user.status = newStatus
     user.updatedAt = new Date().toLocaleString('zh-CN')
-    saveUsers()
+
+
   }
 
   return {

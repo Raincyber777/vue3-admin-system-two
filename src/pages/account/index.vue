@@ -84,8 +84,8 @@
     <el-dialog v-model="detailVisible" :title="detailUser?.name + ' — 账户详情'" width="480px" destroy-on-close>
       <div v-if="detailUser" class="detail-body">
         <div class="detail-row"><span class="dl">姓名</span><span class="dv">{{ detailUser.name }}</span></div>
-        <div class="detail-row"><span class="dl">邮箱</span><span class="dv">{{ detailUser.email }}</span></div>
-        <div class="detail-row"><span class="dl">学号</span><span class="dv">{{ detailUser.studentNo || '-' }}</span></div>
+        <div class="detail-row"><span class="dl">邮箱</span><span class="dv">{{ detailUser.email || '-' }}</span></div>
+        <div class="detail-row"><span class="dl">{{ detailUser.role === 'admin' ? '用户名' : '学号' }}</span><span class="dv">{{ detailUser.role === 'admin' ? (detailUser.username || '-') : (detailUser.studentNo || '-') }}</span></div>
         <div class="detail-row"><span class="dl">电话号码</span><span class="dv">{{ detailUser.phone || '-' }}</span></div>
         <div class="detail-row"><span class="dl">注册时间</span><span class="dv">{{ detailUser.createdAt || '-' }}</span></div>
       </div>
@@ -93,8 +93,16 @@
     </el-dialog>
 
     <!-- 新增账号弹窗 -->
-    <el-dialog v-model="createVisible" title="新增学员账号" width="580px" destroy-on-close top="3vh" class="create-dialog">
+    <el-dialog v-model="createVisible" :title="createForm.role === 'admin' ? '新增管理员账号' : '新增学员账号'" width="580px" destroy-on-close top="3vh" class="create-dialog">
       <el-form :model="createForm" label-width="90px">
+        <!-- 身份选择 -->
+        <el-form-item label="身份" required>
+          <el-radio-group v-model="createForm.role" @change="onRoleChange">
+            <el-radio-button value="student">学员</el-radio-button>
+            <el-radio-button value="admin">管理员</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="姓名" required>
@@ -102,20 +110,35 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="学号" required>
-              <el-input v-model="createForm.studentNo" placeholder="请输入学号" maxlength="20" />
+            <el-form-item :label="createForm.role === 'admin' ? '用户名' : '学号'" required>
+              <el-input v-model="createForm.studentNo" :placeholder="createForm.role === 'admin' ? '请输入登录用户名' : '请输入学号'" maxlength="20" />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="邮箱" required>
-          <el-input v-model="createForm.email" placeholder="请输入邮箱地址" maxlength="60" />
-        </el-form-item>
-        <el-form-item label="密码" required>
-          <el-input v-model="createForm.password" placeholder="请输入初始密码" maxlength="30" show-password />
-        </el-form-item>
-        <el-form-item label="电话号码">
-          <el-input v-model="createForm.phone" placeholder="请输入手机号码" maxlength="11" />
-        </el-form-item>
+
+        <!-- 学员专属字段 -->
+        <template v-if="createForm.role === 'student'">
+          <el-form-item label="邮箱" required>
+            <el-input v-model="createForm.email" placeholder="请输入邮箱地址" maxlength="60" />
+          </el-form-item>
+          <el-form-item label="密码" required>
+            <el-input v-model="createForm.password" placeholder="请输入初始密码" maxlength="30" show-password />
+          </el-form-item>
+          <el-form-item label="电话号码">
+            <el-input v-model="createForm.phone" placeholder="请输入手机号码" maxlength="11" />
+          </el-form-item>
+        </template>
+
+        <!-- 管理员字段 -->
+        <template v-if="createForm.role === 'admin'">
+          <el-form-item label="电话号码">
+            <el-input v-model="createForm.phone" placeholder="请输入手机号码" maxlength="11" />
+          </el-form-item>
+          <el-form-item label="邮箱">
+            <el-input v-model="createForm.email" placeholder="请输入邮箱地址" maxlength="60" />
+          </el-form-item>
+        </template>
+
       </el-form>
       <template #footer>
         <div class="footer-left">
@@ -267,6 +290,7 @@ const openDetail = async (row: User) => {
 const createVisible = ref(false)
 const createLoading = ref(false)
 const createForm = reactive({
+  role: 'student' as 'student' | 'admin',
   name: '',
   email: '',
   studentNo: '',
@@ -274,7 +298,17 @@ const createForm = reactive({
   phone: '',
 })
 
+const onRoleChange = () => {
+  // 切换身份时重置表单
+  createForm.name = ''
+  createForm.email = ''
+  createForm.studentNo = ''
+  createForm.password = ''
+  createForm.phone = ''
+}
+
 const resetCreateForm = () => {
+  createForm.role = 'student'
   createForm.name = ''
   createForm.email = ''
   createForm.studentNo = ''
@@ -288,29 +322,37 @@ const openCreateDialog = () => {
 }
 
 const handleCreateUser = async () => {
+  const isAdmin = createForm.role === 'admin'
+
   if (!createForm.name.trim()) { ElMessage.warning('请输入姓名'); return }
-  if (!createForm.studentNo.trim()) { ElMessage.warning('请输入学号'); return }
-  if (!createForm.email.trim()) { ElMessage.warning('请输入邮箱'); return }
-  if (!createForm.password.trim()) { ElMessage.warning('请输入密码'); return }
+  if (!createForm.studentNo.trim()) { ElMessage.warning(isAdmin ? '请输入用户名' : '请输入学号'); return }
+
+  if (!isAdmin) {
+    if (!createForm.email.trim()) { ElMessage.warning('请输入邮箱'); return }
+    if (!createForm.password.trim()) { ElMessage.warning('请输入密码'); return }
+  }
+
   createLoading.value = true
   try {
     await store.addUser({
-      username: createForm.email,
+      username: createForm.studentNo,
       name: createForm.name,
-      email: createForm.email,
-      role: 'normal',
+      email: createForm.email || `${createForm.studentNo}@placeholder.com`,
+      role: isAdmin ? 'admin' : 'normal',
       status: 'active' as const,
       studentNo: createForm.studentNo,
-      password: createForm.password,
+      password: createForm.password || 'Pass@123',
       phone: createForm.phone,
       department: 'software',
       className: '',
     })
     createVisible.value = false
-    ElMessage.success('账号创建成功！')
+    ElMessage.success(isAdmin ? '管理员账号创建成功，默认密码为 Pass@123' : '账号创建成功！')
   } catch (err: any) {
-    const msg = err?.message || err?.response?.data?.detail || '创建失败，请重试'
-    ElMessage.error(typeof msg === 'string' ? msg : '创建失败，请重试')
+    const data = err?.response?.data
+    const backendMsg = data?.msg || data?.message || data?.detail
+    const msg = backendMsg || err?.message || '该账号不能出现和之前一样的姓名和用户名'
+    ElMessage.error(typeof msg === 'string' ? msg : '该账号不能出现和之前一样的姓名和用户名')
   } finally {
     createLoading.value = false
   }
