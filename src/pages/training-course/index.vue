@@ -350,9 +350,9 @@ const filteredList = computed(() => {
   if (filterStatus.value !== 'all') {
     list = list.filter(c => c.status === filterStatus.value)
   }
-  // 班级筛选
+  // 班级筛选 - 使用 displayClassName（中文数字格式）
   if (filterClass.value !== 'all') {
-    list = list.filter(c => (c as any).className === filterClass.value)
+    list = list.filter(c => (c as any).displayClassName === filterClass.value)
   }
   return list
 })

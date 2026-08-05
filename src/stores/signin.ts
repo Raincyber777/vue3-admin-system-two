@@ -7,7 +7,7 @@ import {
 } from '@/api/signin'
 import {
   formatTime, pick, readStorage, writeStorage,
-  createDeletedIdsManager, parseListResponse,
+  createDeletedIdsManager, parseListResponse, extractClassName, cnClassToArabic,
 } from '@/utils/common'
 
 const deletedCheckinIds = createDeletedIdsManager('deletedCheckinIds')
@@ -50,21 +50,28 @@ const STATUS_MAP: Record<number | string, 'signed' | 'late' | 'absent'> = {
   已签到: 'signed', 未签到: 'absent',
 }
 
-const mapSession = (item: any): SignInSession => ({
-  id: pick(item, 'checkinId', 'checkin_id', 'id', 0) as number,
-  courseId: pick(item, 'courseId', 'course_id', 0) as number,
-  courseName: pick(item, 'courseName', 'course_name', '') as string,
-  title: pick(item, 'title', 'courseName', 'course_name', '签到') as string,
-  department: pick(item, 'department', '') as string,
-  className: pick(item, 'className', 'class_name', '') as string,
-  checkinCode: pick(item, 'checkinCode', 'checkin_code', '') as string,
-  startTime: pick(item, 'createTime', 'create_time', '') as string,
-  endTime: formatTime(pick(item, 'endTime', 'end_time', '') as string),
-  status: pick(item, 'status', 0) === 0 ? 'ended' : 'ongoing',
-  signinCount: pick(item, 'signedCount', 'checkinCount', 'checkin_count', 0) as number,
-  totalCount: pick(item, 'totalCount', 'total_count', 0) as number,
-  createTime: pick(item, 'createTime', 'create_time', '') as string,
-})
+const mapSession = (item: any): SignInSession => {
+  // 获取后端返回的班级字段，可能是 className、groupName 或 groups
+  const rawClassName = pick(item, 'className', 'class_name', 'groupName', 'group_name', 'groups', '') as string
+  // 统一转换为中文数字格式（如 "一班"、"二班"）
+  const displayClassName = extractClassName(rawClassName)
+
+  return {
+    id: pick(item, 'checkinId', 'checkin_id', 'id', 0) as number,
+    courseId: pick(item, 'courseId', 'course_id', 0) as number,
+    courseName: pick(item, 'courseName', 'course_name', '') as string,
+    title: pick(item, 'title', 'courseName', 'course_name', '签到') as string,
+    department: pick(item, 'department', '') as string,
+    className: displayClassName,  // 存储转换后的班级名（中文数字格式）
+    checkinCode: pick(item, 'checkinCode', 'checkin_code', '') as string,
+    startTime: pick(item, 'createTime', 'create_time', '') as string,
+    endTime: formatTime(pick(item, 'endTime', 'end_time', '') as string),
+    status: pick(item, 'status', 0) === 0 ? 'ended' : 'ongoing',
+    signinCount: pick(item, 'signedCount', 'checkinCount', 'checkin_count', 0) as number,
+    totalCount: pick(item, 'totalCount', 'total_count', 0) as number,
+    createTime: pick(item, 'createTime', 'create_time', '') as string,
+  }
+}
 
 const mapRecord = (item: any): SignInRecord => {
   const record: SignInRecord = {
@@ -181,12 +188,15 @@ export const useSignInStore = defineStore('signin', () => {
     let apiEndTime: string = ''
     let apiError: Error | null = null
 
+    // 统一转换班级格式为中文数字格式
+    const normalizedClassName = extractClassName(data.className || '')
+
     try {
       const res: any = await createSignIn({
         courseId: data.courseId,
         title: data.title,
         department: data.department || '',
-        className: data.className,
+        className: normalizedClassName,  // 使用转换后的班级名
         endTime: data.endTime,
       })
       const d = res?.data || res
@@ -201,6 +211,7 @@ export const useSignInStore = defineStore('signin', () => {
     const newId = backendId ?? (Math.max(0, ...sessions.value.map(s => s.id)) + 1)
     const session: SignInSession = {
       ...data,
+      className: normalizedClassName,  // 使用转换后的班级名
       id: newId,
       checkinCode: checkinCode || data.checkinCode || '',
       endTime: formatTime(apiEndTime || data.endTime),

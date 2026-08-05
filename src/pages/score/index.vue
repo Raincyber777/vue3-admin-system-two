@@ -7,19 +7,13 @@
     <!-- 筛选 + 搜索 -->
     <div class="toolbar-card">
       <div class="toolbar-left">
-        <el-radio-group v-model="filterClass" size="small" style="margin-left:16px" @change="onFilterChange">
-          <el-radio-button value="all">全部班级</el-radio-button>
-          <el-radio-button value="一班">一班</el-radio-button>
-          <el-radio-button value="二班">二班</el-radio-button>
-          <el-radio-button value="三班">三班</el-radio-button>
-        </el-radio-group>
-        </div>
         <div class="toolbar-center">
           <span class="sort-label">排序：</span>
           <el-radio-group v-model="sortOrder" size="small" @change="onFilterChange">
             <el-radio-button value="desc">评分 ↓</el-radio-button>
             <el-radio-button value="asc">评分 ↑</el-radio-button>
           </el-radio-group>
+        </div>
         </div>
         <div class="toolbar-right">
         <el-input v-model="searchName" placeholder="搜索学生姓名" clearable class="search-input"
@@ -130,13 +124,11 @@ import type { StudentRecord } from '@/stores/score'
 const store = useScoreStore()
 
 // ==================== 筛选 ====================
-const filterClass = ref('all')
 const searchName = ref('')
 const sortOrder = ref('desc')
 
 const filteredList = computed(() => {
   let list = [...store.students]
-  if (filterClass.value !== 'all') list = list.filter(s => s.className === filterClass.value)
   if (searchName.value.trim()) {
     const kw = searchName.value.trim().toLowerCase()
     list = list.filter(s => (s.name || '').toLowerCase().includes(kw))
