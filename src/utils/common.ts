@@ -144,11 +144,66 @@ const ARABIC_TO_CN: Record<string, string> = {
   '6': '六', '7': '七', '8': '八', '9': '九', '10': '十',
 }
 
-/** 将中文数字班级名转为阿拉伯数字 (一班 -> 1班) */
+/** 从后端返回的groups字段中提取班级名（保留中文数字格式）
+ *  支持多种格式：
+ *  - "一班" -> "一班"
+ *  - "一班、二班" -> "二班"  (提取最后一个班级)
+ *  - "一班、二班、三班" -> "三班"  (提取最后一个班级)
+ */
+export const extractClassName = (className: string): string => {
+  if (!className) return ''
+
+  // 如果包含分隔符（顿号、逗号），说明是多个班级，提取最后一个
+  const separators = ['、', ',', '，', '；', ';']
+  let lastClass = className
+  for (const sep of separators) {
+    if (className.includes(sep)) {
+      const parts = className.split(sep).filter(p => p.trim())
+      lastClass = parts[parts.length - 1].trim()
+      break
+    }
+  }
+
+  // 匹配 "一班"、"二班" 等格式，直接返回（保留中文数字）
+  const match = lastClass.match(/([一二三四五六七八九十]+)(班|组|级)/)
+  if (match) {
+    return lastClass
+  }
+
+  // 匹配 "1班"、"2班" 等格式，转换为中文数字
+  const arabicMatch = lastClass.match(/(\d+)(班|组|级)/)
+  if (arabicMatch) {
+    const arabicNum = arabicMatch[1]
+    const suffix = arabicMatch[2]
+    const cnNum = ARABIC_TO_CN[arabicNum] || arabicNum
+    return `${cnNum}${suffix}`
+  }
+
+  return className
+}
+
+/** 将中文数字班级名转为阿拉伯数字 (一班 -> 1班)
+ *  支持多种格式：
+ *  - "一班" -> "1班"
+ *  - "一班、二班" -> "2班"  (提取最后一个班级)
+ *  - "一班、二班、三班" -> "3班"  (提取最后一个班级)
+ */
 export const cnClassToArabic = (className: string): string => {
   if (!className) return ''
+
+  // 如果包含分隔符（顿号、逗号），说明是多个班级，提取最后一个
+  const separators = ['、', ',', '，', '；', ';']
+  let lastClass = className
+  for (const sep of separators) {
+    if (className.includes(sep)) {
+      const parts = className.split(sep).filter(p => p.trim())
+      lastClass = parts[parts.length - 1].trim()
+      break
+    }
+  }
+
   // 匹配 "一班"、"二班" 等格式
-  const match = className.match(/^([一二三四五六七八九十]+)(班|组|级)$/)
+  const match = lastClass.match(/([一二三四五六七八九十]+)(班|组|级)/)
   if (match) {
     const cnNum = match[1]
     const suffix = match[2]

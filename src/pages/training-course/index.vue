@@ -43,7 +43,7 @@
           </template>
         </el-table-column>
         <el-table-column label="班级" width="80" align="center">
-          <template #default="{ row }">{{ row.className || '-' }}</template>
+          <template #default="{ row }">{{ row.displayClassName || '-' }}</template>
         </el-table-column>
         <el-table-column prop="name" label="课程名" min-width="160" show-overflow-tooltip />
         <el-table-column label="课程描述" min-width="240">

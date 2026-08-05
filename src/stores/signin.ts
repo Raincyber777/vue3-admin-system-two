@@ -70,15 +70,20 @@ const mapRecord = (item: any): SignInRecord => {
   const record: SignInRecord = {
     id: pick(item, 'record_id', 'recordId', 'id', 0) as number,
     signinId: pick(item, 'checkin_id', 'checkinId', 'signinId', 0) as number,
-    userId: pick(item, 'user_id', 'userId', 'student_id', 'studentId', 0) as number,
-    studentName: pick(item, 'real_name', 'userRealName', 'realName', 'name', 'userName', 'username', 'studentName', 'student_name', 'nickname', '') as string,
-    studentNo: pick(item, 'student_no', 'studentNo', 'sno', 'studentId', 'student_id', 'account', 'user_no', '') as string,
-    department: pick(item, 'department', 'dept_name', 'deptName', '') as string,
-    className: pick(item, 'class_name', 'className', 'cls_name', 'clsName', '') as string,
-    signinTime: pick(item, 'checkin_time', 'checkinTime', 'signTime', 'sign_time', 'createTime', 'create_time', 'created_at', 'submitTime', '') as string,
+    userId: pick(item, 'user_id', 'userId', 0) as number,
+    studentName: pick(item, 'realName', 'real_name', 'userRealName', 'name', 'userName', 'username', 'studentName', 'student_name', 'nickname', '') as string,
+    studentNo: pick(item, 'studentId', 'student_no', 'studentNo', 'sno', 'student_id', 'account', 'user_no', '') as string,
+    department: pick(item, 'college', 'department', 'dept_name', 'deptName', '') as string,
+    className: pick(item, 'major', 'class_name', 'className', 'cls_name', 'clsName', '') as string,
+    signinTime: pick(item, 'checkinTime', 'checkin_time', 'signTime', 'sign_time', 'createTime', 'create_time', 'created_at', 'submitTime', '') as string,
     status: (() => {
+      // 优先使用 isSigned 布尔值判断签到状态
+      if (item.isSigned !== undefined && item.isSigned !== null) {
+        return item.isSigned ? 'signed' : 'absent'
+      }
+      // 兼容旧的 status 字段
       const s = pick(item, 'status')
-      return STATUS_MAP[s as keyof typeof STATUS_MAP] || STATUS_MAP[String(s) as keyof typeof STATUS_MAP] || 'signed'
+      return STATUS_MAP[s as keyof typeof STATUS_MAP] || STATUS_MAP[String(s) as keyof typeof STATUS_MAP] || 'absent'
     })(),
     method: pick(item, 'method', 'sign_method', 'signMethod', 'type', 'signin_method', '') as string,
   }

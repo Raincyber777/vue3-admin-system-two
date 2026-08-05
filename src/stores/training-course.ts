@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createCourse, updateCourseApi, deleteCourseApi, getCourseList, getCourseDetail, updateCourseStatus, type CourseDetail } from '@/api/course'
-import { parseListResponse, cnClassToArabic, classToCount } from '@/utils/common'
+import { parseListResponse, extractClassName, cnClassToArabic, classToCount } from '@/utils/common'
 
 export type CourseStatus = 'draft' | 'pending' | 'published' | 'ended'
 export type RegistrationStatus = 'not_started' | 'ongoing' | 'ended'
@@ -18,7 +18,8 @@ export interface Course {
   id: string
   name: string
   department?: 'software'
-  className?: string
+  className?: string  // 存储格式："1班"、"2班"、"3班"（用于表单绑定和提交）
+  displayClassName?: string  // 显示格式："一班"、"二班"、"三班"（用于列表显示）
   status: CourseStatus
   registrationStatus: RegistrationStatus
   trainingTargets: string[]
@@ -114,9 +115,10 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
 
   /** 将 API 返回的课程项映射为前端 Course（API 字段为驼峰） */
   const mapCourseItem = (item: any): Course => {
-    // 后端返回 groups 字段，如 "一班"、"二班"，需要转换为前端格式 "1班"、"2班"
+    // 后端返回 groups 字段，如 "一班、二班"，需要转换
     const rawGroups = item.groups || item.groupName || item.group_name || item.className || item.class_name || ''
-    const className = cnClassToArabic(rawGroups)
+    const className = cnClassToArabic(rawGroups)  // 存储格式："1班"、"2班"、"3班"
+    const displayClassName = extractClassName(rawGroups)  // 显示格式："一班"、"二班"、"三班"
 
     return {
       id: String(item.courseId ?? ''),
@@ -133,6 +135,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       trainingLocation: item.location || '待定',
       instructor: item.instructor || '待定',
       className,
+      displayClassName,
       prerequisites: '',
       courseTags: [],
       description: item.courseDesc || item.description || '',
@@ -304,8 +307,10 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       const res: any = await getCourseDetail(id)
       const d: CourseDetail = res.data || res
       if (d) {
-        // 后端返回 groups 字段，如 "一班"，需要转换为前端格式 "1班"
+        // 后端返回 groups 字段，如 "一班、二班"，需要转换
         const rawGroups = (d as any).groups || (d as any).groupName || (d as any).group_name || (d as any).className || (d as any).class_name || ''
+        const className = cnClassToArabic(rawGroups)
+        const displayClassName = extractClassName(rawGroups)
         return {
           id: String(d.course_id || (d as any).courseId || ''),
           name: d.course_name || (d as any).courseName || '',
@@ -320,7 +325,8 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
           flexibleTime: undefined,
           trainingLocation: (d as any).location || '待定',
           instructor: (d as any).instructor || '待定',
-          className: cnClassToArabic(rawGroups),
+          className,
+          displayClassName,
           prerequisites: '',
           courseTags: [],
           description: d.course_desc || (d as any).courseDesc || '',

@@ -170,7 +170,9 @@
         <el-table-column label="签到方式" width="80" align="center">
           <template #default="{ row }">{{ row.method === 'manual' ? '手动' : '扫码' }}</template>
         </el-table-column>
-        <el-table-column prop="signinTime" label="签到时间" min-width="160" align="center" show-overflow-tooltip />
+        <el-table-column label="签到时间" min-width="160" align="center" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.signinTime ? formatTime(row.signinTime) : '-' }}</template>
+        </el-table-column>
       </el-table>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
@@ -202,6 +204,7 @@ import { Clock, Plus, List, CircleCheck, SwitchButton, Download, Delete } from '
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
 import { useSignInStore, type SignInSession, type SignInRecord } from '@/stores/signin'
 import { useTrainingCourseStore } from '@/stores/training-course'
+import { formatTime } from '@/utils/common'
 
 const store = useSignInStore()
 const courseStore = useTrainingCourseStore()
