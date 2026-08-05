@@ -128,83 +128,38 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
   const fetchCourses = async () => {
     loading.value = true
     error.value = null
-
-    if (courses.value.length === 0) {
-      loadFromStorage()
-      if (courses.value.length === 0) { courses.value = [...DEFAULT_COURSES]; saveToStorage() }
-    }
-
     try {
       const res: any = await getCourseList()
       const list = parseListResponse(res)
-      if (list.length > 0) {
-        // 过滤已删除课程名
-        const deletedNames = readStorage<string[]>('deletedCourseNames', [])
-        const nameToApi = new Map<string, ApiCourseItem>()
-        for (const item of list) {
-          if (deletedNames.includes(pick(item, 'course_name', '') as string)) continue
-          nameToApi.set(pick(item, 'course_name', '') as string, item)
-        }
-
-        // 用 API 数据更新已有课程的后端 ID 和状态
-        for (const c of courses.value) {
-          const apiItem = nameToApi.get(c.name)
-          if (apiItem) {
-            c.id = String(pick(apiItem, 'course_id', '') as string)
-            c.status = (pick(apiItem, 'status', 0) === 1 ? 'published' : 'draft') as CourseStatus
-            c.description = pick(apiItem, 'course_desc', '') as string || c.description
-            c.coverImg = pick(apiItem, 'cover_img', '') as string || c.coverImg
-            if (pick(apiItem, 'course_date', 'courseDate')) { c.timeType = 'flexible' }
-            else if (c.timeType !== 'flexible') {
-              c.timeType = 'fixed'
-              c.startTime = pick(apiItem, 'start_time', '') as string || c.startTime
-              c.endTime = pick(apiItem, 'end_time', '') as string || c.endTime
-            }
-            c.maxParticipants = pick(apiItem, 'max_sign', 50) as number
-            c.currentParticipants = pick(apiItem, 'sign_count', 0) as number
-            c.createdAt = pick(apiItem, 'create_time', '') as string || c.createdAt
-            c.updatedAt = pick(apiItem, 'create_time', '') as string || c.updatedAt
-            if (pick(apiItem, 'create_time')) c.publishedAt = pick(apiItem, 'create_time', '') as string
-            nameToApi.delete(c.name)
-          }
-        }
-
-        // API 中有但本地没有的课程 → 自动添加
-        const deleted = readStorage<string[]>('deletedCourseNames', [])
-        for (const item of nameToApi.values()) {
-          const courseName = pick(item, 'course_name', '') as string
-          if (deleted.includes(courseName)) continue
-          const hasFlexibleTime = pick(item, 'course_date', 'courseDate')
-          courses.value.push({
-            id: String(pick(item, 'course_id', '') as string),
-            name: courseName,
-            status: (pick(item, 'status', 0) === 1 ? 'published' : 'draft') as CourseStatus,
-            registrationStatus: 'ongoing' as RegistrationStatus,
-            trainingTargets: [],
-            maxParticipants: pick(item, 'max_sign', 50) as number,
-            currentParticipants: pick(item, 'sign_count', 0) as number,
-            timeType: hasFlexibleTime ? 'flexible' : 'fixed',
-            startTime: pick(item, 'start_time', '待定') as string,
-            endTime: pick(item, 'end_time', '待定') as string,
-            flexibleTime: hasFlexibleTime ? { startDate: pick(item, 'start_time', '') as string, endDate: pick(item, 'end_time', '') as string, weekdays: [], startTime: '', endTime: '' } : undefined,
-            trainingLocation: pick(item, 'location', '待定') as string,
-            instructor: pick(item, 'instructor', '待定') as string,
-            prerequisites: '',
-            courseTags: [],
-            description: pick(item, 'course_desc', '') as string,
-            chapters: [],
-            linkedAttendance: false,
-            linkedScore: false,
-            linkedAnnouncement: false,
-            createdAt: pick(item, 'create_time', '') as string,
-            updatedAt: pick(item, 'create_time', '') as string,
-            publishedAt: pick(item, 'status', 0) === 1 ? pick(item, 'create_time', '') as string : undefined,
-          } as Course)
-        }
-        saveToStorage()
-      }
+      courses.value = list.map((item: any) => ({
+        id: String(pick(item, 'course_id', '') as string),
+        name: pick(item, 'course_name', '') as string,
+        status: (pick(item, 'status', 0) === 1 ? 'published' : 'draft') as CourseStatus,
+        registrationStatus: 'ongoing' as RegistrationStatus,
+        trainingTargets: [],
+        maxParticipants: pick(item, 'max_sign', 50) as number,
+        currentParticipants: pick(item, 'sign_count', 0) as number,
+        timeType: (pick(item, 'course_date', 'courseDate') ? 'flexible' : 'fixed') as 'fixed' | 'flexible',
+        startTime: pick(item, 'start_time', '待定') as string,
+        endTime: pick(item, 'end_time', '待定') as string,
+        flexibleTime: pick(item, 'course_date', 'courseDate') ? { startDate: pick(item, 'start_time', '') as string, endDate: pick(item, 'end_time', '') as string, weekdays: [], startTime: '', endTime: '' } : undefined,
+        trainingLocation: pick(item, 'location', '待定') as string,
+        instructor: pick(item, 'instructor', '待定') as string,
+        className: (pick(item, 'class_name', '') || pick(item, 'className', '')) as string,
+        prerequisites: '',
+        courseTags: [],
+        description: pick(item, 'course_desc', '') as string,
+        chapters: [],
+        linkedAttendance: false,
+        linkedScore: false,
+        linkedAnnouncement: false,
+        createdAt: pick(item, 'create_time', '') as string,
+        updatedAt: pick(item, 'create_time', '') as string,
+        publishedAt: pick(item, 'status', 0) === 1 ? pick(item, 'create_time', '') as string : undefined,
+      } as Course))
     } catch (err: any) {
-      console.warn('获取课程列表失败，使用本地数据:', err)
+      console.warn('获取课程列表失败:', err)
+      error.value = err.message || '获取课程列表失败'
     } finally {
       total.value = courses.value.length
       loading.value = false
@@ -214,11 +169,6 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
   const addCourse = async (data: Omit<Course, 'id' | 'createdAt' | 'updatedAt'>) => {
     loading.value = true
     error.value = null
-
-    const tempId = generateTempId()
-    const course: Course = { ...data, id: String(tempId), createdAt: now(), updatedAt: now() }
-    courses.value.unshift(course)
-    saveToStorage()
 
     try {
       const res: any = await createCourse({
@@ -234,24 +184,13 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       })
 
       const backendId = pick(res?.data, 'courseId', 'course_id', 'id', null) ?? pick(res, 'courseId', 'id', null)
-      if (backendId) {
-        course.id = String(backendId)
-        saveToStorage()
-      } else {
-        try {
-          const listRes: any = await getCourseList()
-          const list = parseListResponse(listRes)
-          const match = list.find((c: any) => (pick(c, 'courseName', 'course_name', '') as string) === data.name)
-          if (match) {
-            const id = pick(match, 'course_id', 'courseId', 'id', null)
-            if (id) { course.id = String(id); saveToStorage() }
-          }
-        } catch { /* ignore */ }
-      }
+      const course: Course = { ...data, id: String(backendId || ''), createdAt: now(), updatedAt: now() }
+      courses.value.unshift(course)
+      await fetchCourses()
       return true
     } catch (err: any) {
       console.error('创建课程失败:', err)
-      return true
+      error.value = err.message || '创建课程失败'
     } finally {
       loading.value = false
     }
@@ -276,7 +215,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       if (index !== -1) {
         courses.value[index] = { ...courses.value[index], ...data, updatedAt: now() }
         if (data.status === 'published' && !courses.value[index].publishedAt) courses.value[index].publishedAt = now()
-        saveToStorage()
+    
       }
       return true
     } catch (err: any) {
@@ -292,29 +231,15 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
   const deleteCourse = async (id: string) => {
     loading.value = true
     error.value = null
-
-    const course = courses.value.find(c => c.id === id)
-    const numericId = /^\d+$/.test(id) ? id : null
-
-    if (numericId) {
-      try { await deleteCourseApi(numericId) } catch (err) { console.warn('删除课程 API 失败:', err) }
-    } else if (course?.name) {
-      try {
-        const res: any = await getCourseList()
-        const list = parseListResponse(res)
-        const match = list.find((c: any) => pick(c, 'course_name', '') === course.name)
-        if (match?.course_id) await deleteCourseApi(String(match.course_id))
-      } catch (err) { console.warn('反查删除课程失败:', err) }
+    try {
+      await deleteCourseApi(id)
+      courses.value = courses.value.filter(c => c.id !== id)
+    } catch (err: any) {
+      console.warn('删除课程失败:', err)
+      error.value = err.message || '删除失败'
+    } finally {
+      loading.value = false
     }
-
-    if (course?.name) {
-      const deleted = readStorage<string[]>('deletedCourseNames', [])
-      if (!deleted.includes(course.name)) { deleted.push(course.name); writeStorage('deletedCourseNames', deleted) }
-    }
-
-    courses.value = courses.value.filter(c => c.id !== id)
-    saveToStorage()
-    loading.value = false
     return true
   }
 
@@ -323,16 +248,11 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = null
     try {
       await updateCourseStatus(id, 1)
-      const index = courses.value.findIndex(c => c.id === id)
-      if (index !== -1) {
-        courses.value[index] = { ...courses.value[index], status: 'published', publishedAt: now(), updatedAt: now() }
-        saveToStorage()
-      }
+      await fetchCourses()
       ElMessage.success('课程已发布')
     } catch (err: any) {
       error.value = err.message || '发布失败'
       ElMessage.error(error.value)
-      throw err
     } finally {
       loading.value = false
     }
@@ -343,16 +263,11 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = null
     try {
       await updateCourseStatus(id, 0)
-      const index = courses.value.findIndex(c => c.id === id)
-      if (index !== -1) {
-        courses.value[index] = { ...courses.value[index], status: 'draft', updatedAt: now() }
-        saveToStorage()
-      }
+      await fetchCourses()
       ElMessage.success('课程已下架')
     } catch (err: any) {
       error.value = err.message || '下架失败'
       ElMessage.error(error.value)
-      throw err
     } finally {
       loading.value = false
     }
@@ -372,7 +287,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       const index = courses.value.findIndex(c => c.id === id)
       if (index !== -1) {
         courses.value[index] = { ...courses.value[index], status: 'ended', registrationStatus: 'ended', updatedAt: now() }
-        saveToStorage()
+    
       }
       return true
     } catch (err: any) {
