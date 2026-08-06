@@ -15,6 +15,9 @@
         </el-radio-group>
       </div>
       <div class="toolbar-right">
+        <el-button type="primary" @click="handleImport">
+          <el-icon><Upload /></el-icon> 导入名单
+        </el-button>
         <el-button class="btn-export" @click="handleExport" :loading="exportLoading">
           <el-icon><Download /></el-icon> 导出名单
         </el-button>
@@ -58,10 +61,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Collection, Download } from '@element-plus/icons-vue'
+import { Collection, Download, Upload } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
 import { getClassList, exportClassList, type ClassListItem } from '@/api/training'
+import { importSignList } from '@/api/sign'
 
 // ==================== 数据 ====================
 const list = ref<ClassListItem[]>([])
@@ -123,6 +127,29 @@ const handleExport = async () => {
   } finally {
     exportLoading.value = false
   }
+}
+
+const importLoading = ref(false)
+const handleImport = () => {
+  // 触发隐藏的文件选择器
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.xlsx,.xls,.csv'
+  input.onchange = async (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    importLoading.value = true
+    try {
+      await importSignList(file)
+      ElMessage.success('导入成功')
+      await fetchList() // 刷新列表
+    } catch {
+      ElMessage.error('导入失败')
+    } finally {
+      importLoading.value = false
+    }
+  }
+  input.click()
 }
 
 // ==================== 数据加载 ====================

@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const request = axios.create({
-  baseURL: 'http://t2e33976.natappfree.cc/api',
+  baseURL: BASE_URL,
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json'
@@ -17,6 +17,21 @@ request.interceptors.request.use(
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    // 自动给所有请求加上实验室 ID（数据隔离）
+    const userInfo = localStorage.getItem('userInfo')
+    if (userInfo) {
+      try {
+        const parsed = JSON.parse(userInfo)
+        const labId = parsed.labId || parsed.lab_id
+        if (labId) {
+          config.headers['X-Lab-Id'] = String(labId)
+          // 同时作为 query 参数兜底
+          if (config.method === 'get' || config.method === 'delete') {
+            config.params = { ...config.params, labId: String(labId) }
+          }
+        }
+      } catch { /* ignore */ }
     }
     return config
   },

@@ -116,13 +116,22 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
 
   /** 将 API 返回的课程项映射为前端 Course（API 字段为驼峰） */
   const mapCourseItem = (item: any): Course => {
-    // 后端返回 groups 字段，如 "一班、二班"，需要转换
     const rawGroups = item.groups || item.groupName || item.group_name || item.className || item.class_name || ''
     const className = cnClassToArabic(rawGroups)
     const displayClassName = extractClassName(rawGroups)
 
+    // 从用户信息中获取当前实验室 ID
+    let currentLabId: string | number | undefined
+    try {
+      const userInfoStr = localStorage.getItem('userInfo')
+      if (userInfoStr) {
+        const parsed = JSON.parse(userInfoStr)
+        currentLabId = parsed.labId || parsed.lab_id
+      }
+    } catch { /* ignore */ }
+
     return {
-      id: String(item.courseId ?? item.course_id ?? ''),
+      id: String(item.courseId ?? item.course_id ?? item.id ?? ''),
       name: item.courseName ?? item.course_name ?? '',
       status: (item.status === 1 ? 'published' : 'draft') as CourseStatus,
       registrationStatus: 'ongoing' as RegistrationStatus,
@@ -148,7 +157,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       createdAt: item.createTime ?? item.create_time ?? '',
       updatedAt: item.createTime ?? item.create_time ?? '',
       publishedAt: item.status === 1 ? (item.createTime ?? item.create_time) : undefined,
-      department: 'software',
+      department: item.department ?? (currentLabId === 'ai' ? 'ai' : 'software'),
     }
   }
 
@@ -159,7 +168,6 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       const authStore = useAuthStore()
       const labId = authStore.currentLabId
 
-      // 构建查询参数，添加 labId 进行数据隔离
       const params: any = { page: 1, size: 100 }
       if (labId) {
         params.labId = labId
@@ -184,8 +192,8 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     try {
       const authStore = useAuthStore()
       const labId = authStore.currentLabId
+      const labName = authStore.currentLabName
 
-      // 将前端班级名 "1班" 转为数字 1，作为 groupCount 参数
       const groupCount = classToCount(data.className || '')
       const payload: any = {
         courseName: data.name,
@@ -200,19 +208,62 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
         timeType: data.timeType,
         flexibleTime: data.flexibleTime,
         courseDate: data.timeType === 'flexible' ? formatFlexibleTimeForApi(data.flexibleTime) : undefined,
+        status: data.status === 'published' ? 1 : 0,
       }
 
-      // 添加实验室 ID 进行数据隔离
       if (labId) {
         payload.labId = labId
         payload.lab_id = labId
+        payload.labID = labId
+      }
+      if (labName) {
+        payload.labName = labName
+        payload.lab_name = labName
+      }
+      payload.department = labId === 'ai' ? 'ai' : 'software'
+
+      const createRes: any = await createCourse(payload)
+
+      // 从创建响应中提取课程 ID
+      const newCourseId = createRes?.data?.courseId || createRes?.data?.course_id || createRes?.data?.id
+
+      // 构建完整的 Course 对象（合并前端表单数据和后端返回的 ID）
+      const newCourse: Course = {
+        id: String(newCourseId || Date.now()),
+        name: data.name,
+        status: data.status || 'draft',
+        registrationStatus: 'ongoing',
+        trainingTargets: [],
+        maxParticipants: data.maxParticipants || 50,
+        currentParticipants: 0,
+        timeType: data.timeType || 'fixed',
+        startTime: data.startTime || '待定',
+        endTime: data.endTime || '待定',
+        flexibleTime: data.flexibleTime,
+        trainingLocation: data.trainingLocation || '待定',
+        instructor: data.instructor || '待定',
+        className: data.className || '',
+        displayClassName: data.className ? extractClassName(data.className) : '',
+        prerequisites: '',
+        courseTags: [],
+        description: data.description || '',
+        coverImg: (data as any).coverImg || '',
+        chapters: [],
+        linkedAttendance: false,
+        linkedScore: false,
+        linkedAnnouncement: false,
+        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        publishedAt: data.status === 'published' ? new Date().toISOString() : undefined,
+        department: labId === 'ai' ? 'ai' : 'software',
       }
 
-      await createCourse(payload)
+      // 刷新列表
       await fetchCourses()
+
       return true
     } catch (err: any) {
-      console.warn('创建课程失败:', err)
+      console.error('❌ 创建课程失败:', err)
       error.value = err.message || '创建课程失败'
       ElMessage.error(error.value)
       return false
@@ -225,7 +276,6 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     loading.value = true
     error.value = ''
     try {
-      // 将前端班级名 "1班" 转为数字 1，作为 groupCount 参数
       const groupCount = classToCount(data.className || '')
       await updateCourseApi(id, {
         courseName: data.name,
@@ -241,6 +291,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
         flexibleTime: data.flexibleTime,
         courseDate: data.timeType === 'flexible' ? formatFlexibleTimeForApi(data.flexibleTime) : undefined,
       })
+      // 同步更新本地缓存
       await fetchCourses()
       ElMessage.success('课程已更新')
       return true
@@ -259,6 +310,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = ''
     try {
       await deleteCourseApi(id)
+      // 从本地缓存删除
       await fetchCourses()
       ElMessage.success('课程已删除')
     } catch (err: any) {
@@ -276,6 +328,8 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = ''
     try {
       await updateCourseStatus(id, 1)
+      const course = courses.value.find(c => c.id === id)
+      if (course) course.status = 'published'
       await fetchCourses()
       ElMessage.success('课程已发布')
     } catch (err: any) {
@@ -291,6 +345,8 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = ''
     try {
       await updateCourseStatus(id, 0)
+      const course = courses.value.find(c => c.id === id)
+      if (course) course.status = 'draft'
       await fetchCourses()
       ElMessage.success('课程已下架')
     } catch (err: any) {
@@ -309,6 +365,8 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       if (!course) return false
       if (course.status !== 'published') { ElMessage.warning('只能结束已发布的课程'); return false }
       await updateCourseStatus(id, 0)
+      const c = courses.value.find(c => c.id === id)
+      if (c) c.status = 'ended'
       await fetchCourses()
       return true
     } catch (err: any) {
@@ -328,10 +386,19 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       const res: any = await getCourseDetail(id)
       const d: CourseDetail = res.data || res
       if (d) {
-        // 后端返回 groups 字段，如 "一班、二班"，需要转换
         const rawGroups = (d as any).groups || (d as any).groupName || (d as any).group_name || (d as any).className || (d as any).class_name || ''
         const className = cnClassToArabic(rawGroups)
         const displayClassName = extractClassName(rawGroups)
+
+        let currentLabId: string | number | undefined
+        try {
+          const userInfoStr = localStorage.getItem('userInfo')
+          if (userInfoStr) {
+            const parsed = JSON.parse(userInfoStr)
+            currentLabId = parsed.labId || parsed.lab_id
+          }
+        } catch { /* ignore */ }
+
         return {
           id: String(d.course_id || (d as any).courseId || ''),
           name: d.course_name || (d as any).courseName || '',
@@ -357,7 +424,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
           createdAt: d.create_time || (d as any).createTime || '',
           updatedAt: d.create_time || (d as any).createTime || '',
           publishedAt: d.status === 1 ? (d.create_time || (d as any).createTime) : undefined,
-          department: 'software',
+          department: (d as any).department ?? (currentLabId === 'ai' ? 'ai' : 'software'),
         }
       }
     } catch (error) { console.warn('获取课程详情失败:', error) }

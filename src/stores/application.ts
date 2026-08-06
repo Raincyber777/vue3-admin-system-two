@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getSignList, getSignDetail, approveSign, rejectSign, getSignSwitch, updateSignSwitch, type SignDetail } from '@/api/sign'
+import { useAuthStore } from '@/stores/auth'
 import type { CourseEnrollmentItem } from '@/types/training'
 
 /** 后端状态码 → 前端状态（0=待审核, 1=已通过, 2=已驳回，其他=待审核） */
@@ -97,7 +98,10 @@ export const useApplicationStore = defineStore('application', () => {
   async function fetchApplications(): Promise<CourseEnrollmentItem[]> {
     loading.value = true
     try {
-      const res: any = await getSignList()
+      const labId = useAuthStore().currentLabId
+      const params: any = {}
+      if (labId) { params.labId = labId }
+      const res: any = await getSignList(params)
       // 后端返回 { total, list: [...] }
       const list = res?.list || res?.data?.list || []
       const arr = Array.isArray(list) ? list : []

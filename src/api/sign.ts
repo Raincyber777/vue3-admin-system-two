@@ -124,3 +124,15 @@ export const updateSignSwitch = async (enabled: boolean): Promise<void> => {
 export const getFrontSignSwitch = async (): Promise<SignSwitchStatus> => {
   return request.get('/v1/admin/sign_switch/front/get')
 }
+
+/**
+ * 导入报名名单（Excel）
+ * POST /v1/admin/sign/import
+ */
+export const importSignList = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post('/v1/admin/sign/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
