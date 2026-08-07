@@ -68,9 +68,10 @@ request.interceptors.response.use(
     if (error.response) {
       const { status } = error.response
       if (status === 401) {
-        // 修改密码接口的 401 是"原密码错误"，不要跳登录，交给调用方处理
-        const isUpdatePwd = error.config?.url?.includes('/auth/update_pwd')
-        if (!isUpdatePwd) {
+        // 登录和修改密码接口的 401 是"密码错误"，不要跳转，交给调用方处理
+        const url = error.config?.url || ''
+        const isAuthAction = url.includes('/auth/login') || url.includes('/auth/update_pwd')
+        if (!isAuthAction) {
           ElMessage.error('登录已过期，请重新登录')
           localStorage.removeItem('token')
           localStorage.removeItem('userInfo')
