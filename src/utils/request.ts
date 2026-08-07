@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const request = axios.create({
-  baseURL: 'http://p576b769.natappfree.cc/api',
+  baseURL: '/api',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json'
