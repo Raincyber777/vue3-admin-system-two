@@ -176,10 +176,38 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
 
       const res: any = await getCourseList(params)
       const list = parseListResponse(res)
-      courses.value = list.map(mapCourseItem)
+      let mapped = list.map(mapCourseItem)
+
+      // 如果后端返回空列表，尝试从本地缓存读取
+      if (mapped.length === 0) {
+        const cached = readCachedCourses()
+        if (cached.length > 0) {
+          console.log(`📦 后端返回空列表，从本地缓存读取 ${cached.length} 条课程`)
+          mapped = cached
+        }
+      } else {
+        // 后端有数据时，同步更新缓存（合并去重）
+        const cached = readCachedCourses()
+        const allIds = new Set(mapped.map(c => c.id))
+        // 保留缓存中后端没有的课程
+        const extraCached = cached.filter(c => !allIds.has(c.id))
+        if (extraCached.length > 0) {
+          mapped = [...mapped, ...extraCached]
+        }
+        writeCachedCourses(mapped)
+      }
+
+      courses.value = mapped
       total.value = courses.value.length
     } catch (err: any) {
-      console.warn('获取课程列表失败:', err)
+      console.error('❌ 获取课程列表失败:', err)
+      // 请求失败时也尝试从缓存读取
+      const cached = readCachedCourses()
+      if (cached.length > 0) {
+        console.log(`📦 请求失败，从本地缓存读取 ${cached.length} 条课程`)
+        courses.value = cached
+        total.value = cached.length
+      }
       error.value = err.message || '获取课程列表失败'
     } finally {
       loading.value = false
@@ -258,7 +286,10 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
         department: labId === 'ai' ? 'ai' : 'software',
       }
 
-      // 刷新列表
+      // 保存到本地缓存
+      addToCache(newCourse)
+
+      // 刷新列表（会自动合并缓存数据）
       await fetchCourses()
 
       return true
@@ -292,6 +323,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
         courseDate: data.timeType === 'flexible' ? formatFlexibleTimeForApi(data.flexibleTime) : undefined,
       })
       // 同步更新本地缓存
+      updateInCache(id, data)
       await fetchCourses()
       ElMessage.success('课程已更新')
       return true
@@ -311,6 +343,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     try {
       await deleteCourseApi(id)
       // 从本地缓存删除
+      removeFromCache(id)
       await fetchCourses()
       ElMessage.success('课程已删除')
     } catch (err: any) {
@@ -328,8 +361,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = ''
     try {
       await updateCourseStatus(id, 1)
-      const course = courses.value.find(c => c.id === id)
-      if (course) course.status = 'published'
+      updateInCache(id, { status: 'published' })
       await fetchCourses()
       ElMessage.success('课程已发布')
     } catch (err: any) {
@@ -345,8 +377,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = ''
     try {
       await updateCourseStatus(id, 0)
-      const course = courses.value.find(c => c.id === id)
-      if (course) course.status = 'draft'
+      updateInCache(id, { status: 'draft' })
       await fetchCourses()
       ElMessage.success('课程已下架')
     } catch (err: any) {
@@ -365,8 +396,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       if (!course) return false
       if (course.status !== 'published') { ElMessage.warning('只能结束已发布的课程'); return false }
       await updateCourseStatus(id, 0)
-      const c = courses.value.find(c => c.id === id)
-      if (c) c.status = 'ended'
+      updateInCache(id, { status: 'ended' })
       await fetchCourses()
       return true
     } catch (err: any) {
@@ -380,6 +410,73 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
   }
 
   const getCourseById = (id: string) => courses.value.find(c => c.id === id)
+
+  // ==================== 本地课程缓存（应对后端数据隔离问题） ====================
+  // 当后端无法正确按 lab_id 过滤返回课程时，前端用 localStorage 缓存已创建的课程
+  const COURSE_CACHE_KEY = 'cachedCourses'
+
+  /** 获取当前实验室 ID */
+  const getCurrentLabId = (): string => {
+    try {
+      const userInfoStr = localStorage.getItem('userInfo')
+      if (userInfoStr) {
+        const parsed = JSON.parse(userInfoStr)
+        return String(parsed.labId || parsed.lab_id || '')
+      }
+    } catch { /* ignore */ }
+    return ''
+  }
+
+  /** 读取当前实验室的缓存课程 */
+  const readCachedCourses = (): Course[] => {
+    const labId = getCurrentLabId()
+    if (!labId) return []
+    try {
+      const raw = localStorage.getItem(COURSE_CACHE_KEY)
+      if (!raw) return []
+      const all = JSON.parse(raw) as Record<string, Course[]>
+      return all[labId] || []
+    } catch { return [] }
+  }
+
+  /** 保存当前实验室的缓存课程 */
+  const writeCachedCourses = (list: Course[]) => {
+    const labId = getCurrentLabId()
+    if (!labId) return
+    try {
+      const raw = localStorage.getItem(COURSE_CACHE_KEY)
+      const all = raw ? JSON.parse(raw) as Record<string, Course[]> : {}
+      all[labId] = list
+      localStorage.setItem(COURSE_CACHE_KEY, JSON.stringify(all))
+    } catch { /* ignore */ }
+  }
+
+  /** 向缓存中添加一门课程 */
+  const addToCache = (course: Course) => {
+    const cached = readCachedCourses()
+    // 避免重复
+    if (!cached.find(c => c.id === course.id)) {
+      cached.unshift(course)
+      writeCachedCourses(cached)
+    }
+  }
+
+  /** 从缓存中删除一门课程 */
+  const removeFromCache = (id: string) => {
+    const cached = readCachedCourses()
+    const filtered = cached.filter(c => c.id !== id)
+    writeCachedCourses(filtered)
+  }
+
+  /** 更新缓存中的一门课程 */
+  const updateInCache = (id: string, data: Partial<Course>) => {
+    const cached = readCachedCourses()
+    const idx = cached.findIndex(c => c.id === id)
+    if (idx >= 0) {
+      cached[idx] = { ...cached[idx], ...data }
+      writeCachedCourses(cached)
+    }
+  }
 
   const fetchCourseDetail = async (id: string): Promise<Course | null> => {
     try {
