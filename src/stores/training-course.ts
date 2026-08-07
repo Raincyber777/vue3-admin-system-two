@@ -176,6 +176,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       const res: any = await getCourseList(params)
       const list = parseListResponse(res)
       courses.value = list.map(mapCourseItem)
+      console.log('🔍 [课程列表] 映射后 courses:', courses.value.length, '条', courses.value.map(c => ({ id: c.id, name: c.name })))
       total.value = courses.value.length
     } catch (err: any) {
       console.warn('获取课程列表失败:', err)
@@ -219,6 +220,8 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       }
       payload.department = labId === 'ai' ? 'ai' : 'software'
 
+      console.log('🔍 [创建课程] 当前 labId:', labId, 'labName:', labName)
+      console.log('🔍 [创建课程] 请求 payload:', JSON.stringify(payload))
       await createCourse(payload)
       await fetchCourses()
 
