@@ -43,7 +43,11 @@ export const useAuthStore = defineStore('auth', () => {
       ...info,
       labId: info.labId ?? info.lab_id,
       labName: info.labName ?? info.lab_name,
-      roles: info.roles ?? (info.role ? [info.role] : []),
+      role: info.role || 'admin',
+      roles: info.roles ?? (info.role ? [info.role] : (info.adminId ? ['admin'] : [])),
+      name: info.realName || info.name || info.adminName || '',
+      phone: info.phone || '',
+      email: info.email || '',
       permissions: info.permissions ?? [],
       menus: info.menus ?? [],
     }
@@ -118,7 +122,11 @@ export const useAuthStore = defineStore('auth', () => {
           ...payload,
           labId: payload.labId ?? payload.lab_id ?? payload.labID,
           labName: payload.labName ?? payload.lab_name ?? payload.labNameCn ?? payload.lab,
-          roles: payload.roles ?? (payload.role ? [payload.role] : []),
+          role: payload.role || 'admin', // 个人中心显示用，后端未返回时默认 admin
+          roles: payload.roles ?? (payload.role ? [payload.role] : (payload.adminId ? ['admin'] : [])),
+          name: payload.realName || payload.name || payload.adminName || '',
+          phone: payload.phone || '',
+          email: payload.email || '',
           permissions: payload.permissions ?? [],
           menus: payload.menus ?? [],
         }
