@@ -338,7 +338,7 @@ const handleCreateUser = async () => {
       username: createForm.studentNo,
       name: createForm.name,
       email: createForm.email || `${createForm.studentNo}@placeholder.com`,
-      role: isAdmin ? 'admin' : 'normal',
+      role: isAdmin ? 'admin' : 'student',
       status: 'active' as const,
       studentNo: createForm.studentNo,
       password: createForm.password || 'Pass@123',

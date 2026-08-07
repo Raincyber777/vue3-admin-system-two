@@ -27,16 +27,14 @@ request.interceptors.request.use(
         console.log('🔍 [拦截器] 当前登录账号:', parsed.adminName || parsed.username, '| labId:', labId, '| labName:', parsed.labName, '| 请求:', config.method?.toUpperCase(), config.url)
         if (labId) {
           config.headers['X-Lab-Id'] = String(labId)
-          // GET/DELETE：query 参数同时发 labId 和 lab_id
+          // GET/DELETE：query 参数发 lab_id
           if (config.method === 'get' || config.method === 'delete') {
-            config.params = { ...config.params, lab_id: String(labId), labId: String(labId) }
-            console.log('🔍 [拦截器] GET/DELETE query 参数:', { lab_id: String(labId), labId: String(labId) })
+            config.params = { ...config.params, lab_id: String(labId) }
           }
-          // POST/PUT/PATCH：body 自动注入
+          // POST/PUT/PATCH：body 自动注入 lab_id
           if (config.method === 'post' || config.method === 'put' || config.method === 'patch') {
             if (typeof config.data === 'object' && config.data !== null && !(config.data instanceof FormData)) {
               config.data = { ...config.data, lab_id: String(labId) }
-              console.log('🔍 [拦截器] POST/PUT body 注入 lab_id:', String(labId))
             }
           }
         } else {

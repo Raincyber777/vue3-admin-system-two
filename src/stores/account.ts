@@ -3,14 +3,13 @@ import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
 import { getUserList, getUserDetail, updateUserStatus, createUser, deleteUserApi, batchDeleteUsersApi } from '@/api/user'
 import { useAuthStore } from '@/stores/auth'
-import { getCurrentLabId } from '@/utils/permission'
 
 export interface User {
   id: number
   username: string
   name: string
   email: string
-  role: 'admin' | 'normal'
+  role: 'admin' | 'student'
   status: 'active' | 'disabled'
   studentNo: string
   password: string
@@ -29,7 +28,7 @@ export const useAccountStore = defineStore('account', () => {
     username: u.username || '',
     name: u.name || u.real_name || u.realName || '',
     email: u.email || '',
-    role: u.role === 'admin' ? 'admin' : 'normal',
+    role: u.role === 'admin' ? 'admin' : 'student',
     status: u.status === 'disabled' ? 'disabled' : 'active',
     studentNo: u.studentNo || u.student_no || u.studentId || u.student_id || '',
     password: u.password || '',
@@ -50,7 +49,7 @@ export const useAccountStore = defineStore('account', () => {
     username: item.username || item.userName || '',
     name: item.realName || item.real_name || item.name || '',
     email: item.email || '',
-    role: (item.role === 'admin' ? 'admin' : 'normal') as 'admin' | 'normal',
+    role: (item.role === 'admin' ? 'admin' : 'student') as 'admin' | 'student',
     // 后端 status: 1=启用, 0=禁用
     status: (item.status === 'disabled' || item.status === 0 ? 'disabled' : 'active') as 'active' | 'disabled',
     // 后端用 studentId（不是 studentNo）
@@ -103,7 +102,7 @@ export const useAccountStore = defineStore('account', () => {
     const index = users.value.findIndex(u => u.id === id)
     if (index !== -1) {
       users.value.splice(index, 1)
-  
+
 
       return true
     }
@@ -186,7 +185,7 @@ export const useAccountStore = defineStore('account', () => {
         const username = row['用户名'] || row['username'] || `imported_${i}`
         const name = row['姓名'] || row['name'] || username
         const email = row['邮箱'] || row['email'] || `${username}@lab.edu.cn`
-        const role = (row['角色'] === '管理员' || row['role'] === 'admin') ? 'admin' as const : 'normal' as const
+        const role = (row['角色'] === '管理员' || row['role'] === 'admin') ? 'admin' as const : 'student' as const
         const status = (row['状态'] === '已禁用' || row['status'] === 'disabled') ? 'disabled' as const : 'active' as const
         users.value.push({
           id: newId + i, username, name, email, role, status,
@@ -198,7 +197,7 @@ export const useAccountStore = defineStore('account', () => {
           createdAt: now, updatedAt: now,
         })
       })
-  
+
 
       return true
     } catch (error) {
@@ -214,19 +213,18 @@ export const useAccountStore = defineStore('account', () => {
 
     // 调用后端 API
     try {
-      const labId = getCurrentLabId()
       const res: any = await createUser({
         username: user.username || user.email,
         realName: user.name,
         email: user.email,
-        role: user.role || 'normal',
+        password: user.password || undefined,
+        role: user.role || 'student',
         phone: user.phone || undefined,
         studentId: user.studentNo || undefined,
+        student_no: user.studentNo || undefined,
         grade: user.className || undefined,
         major: undefined,
         college: undefined,
-        labId: labId || undefined,
-        lab_id: labId || undefined,
       })
       // 尝试从响应中获取后端 ID（兼容多种响应格式）
       backendId = res?.data?.userId ?? res?.data?.user_id ?? res?.userId ?? res?.user_id ?? res?.data?.id ?? res?.id ?? null
@@ -251,7 +249,7 @@ export const useAccountStore = defineStore('account', () => {
     const index = users.value.findIndex(u => u.id === id)
     if (index !== -1) {
       users.value[index] = { ...users.value[index], ...updates, updatedAt: new Date().toLocaleString('zh-CN') }
-  
+
 
     }
   }

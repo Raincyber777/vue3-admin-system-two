@@ -105,10 +105,11 @@ export const batchDeleteUsersApi = async (userIds: number[]) => {
   return request.delete('/v1/admin/user/delete', { data: { userIds } })
 }
 
-/** 创建用户请求体（与后端实际接受的字段一致，驼峰命名） */
+/** 创建用户请求体（与后端实际接受的字段一致） */
 export interface CreateUserParams {
   username: string
   realName: string
+  password?: string
   phone?: string
   email: string
   role?: string
@@ -116,7 +117,7 @@ export interface CreateUserParams {
   major?: string
   college?: string
   studentId?: string
-  labId?: string
+  student_no?: string
   lab_id?: string
 }
 

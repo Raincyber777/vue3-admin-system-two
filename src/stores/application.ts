@@ -90,10 +90,7 @@ export const useApplicationStore = defineStore('application', () => {
   async function fetchApplications(): Promise<CourseEnrollmentItem[]> {
     loading.value = true
     try {
-      const labId = useAuthStore().currentLabId
-      const params: any = {}
-      if (labId) { params.lab_id = labId }
-      const res: any = await getSignList(params)
+      const res: any = await getSignList({})
       // 后端返回 { total, list: [...] }
       const list = res?.list || res?.data?.list || []
       const arr = Array.isArray(list) ? list : []

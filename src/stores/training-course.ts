@@ -165,13 +165,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     loading.value = true
     error.value = ''
     try {
-      const authStore = useAuthStore()
-      const labId = authStore.currentLabId
-
       const params: any = { page: 1, size: 100 }
-      if (labId) {
-        params.lab_id = labId
-      }
 
       const res: any = await getCourseList(params)
       const list = parseListResponse(res)
@@ -192,7 +186,6 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     try {
       const authStore = useAuthStore()
       const labId = authStore.currentLabId
-      const labName = authStore.currentLabName
 
       const groupCount = classToCount(data.className || '')
       const payload: any = {
@@ -211,16 +204,8 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
         status: data.status === 'published' ? 1 : 0,
       }
 
-      if (labId) {
-        payload.lab_id = labId
-      }
-      if (labName) {
-        payload.labName = labName
-        payload.lab_name = labName
-      }
       payload.department = labId === 'ai' ? 'ai' : 'software'
 
-      console.log('🔍 [创建课程] 当前 labId:', labId, 'labName:', labName)
       console.log('🔍 [创建课程] 请求 payload:', JSON.stringify(payload))
       await createCourse(payload)
       await fetchCourses()
