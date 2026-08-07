@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import * as XLSX from 'xlsx'
 import { getUserList, getUserDetail, updateUserStatus, createUser, deleteUserApi, batchDeleteUsersApi } from '@/api/user'
 import { useAuthStore } from '@/stores/auth'
+import { getCurrentLabId } from '@/utils/permission'
 
 export interface User {
   id: number
@@ -213,6 +214,7 @@ export const useAccountStore = defineStore('account', () => {
 
     // 调用后端 API
     try {
+      const labId = getCurrentLabId()
       const res: any = await createUser({
         username: user.username || user.email,
         realName: user.name,
@@ -223,6 +225,8 @@ export const useAccountStore = defineStore('account', () => {
         grade: user.className || undefined,
         major: undefined,
         college: undefined,
+        labId: labId || undefined,
+        lab_id: labId || undefined,
       })
       // 尝试从响应中获取后端 ID（兼容多种响应格式）
       backendId = res?.data?.userId ?? res?.data?.user_id ?? res?.userId ?? res?.user_id ?? res?.data?.id ?? res?.id ?? null

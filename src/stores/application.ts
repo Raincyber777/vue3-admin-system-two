@@ -58,25 +58,9 @@ const mapSignDetail = (d: any): CourseEnrollmentItem => ({
 export const useApplicationStore = defineStore('application', () => {
   const applicants = ref<CourseEnrollmentItem[]>([])
   const loading = ref(false)
-  /** 是否使用模拟数据（后端不可用时自动降级） */
-  const usingMockData = ref(false)
   /** 报名开关状态 */
   const signSwitchEnabled = ref(true)
   const switchLoading = ref(false)
-
-  // 本地审核状态（localStorage 持久化，刷新不丢失）
-  // 格式：{ [signId]: 'approved' | 'rejected' }
-  const getLocalReviewStatus = (): Record<number, 'approved' | 'rejected'> => {
-    try {
-      const stored = localStorage.getItem('localReviewStatus')
-      return stored ? JSON.parse(stored) : {}
-    } catch { return {} }
-  }
-  const setLocalReviewStatus = (signId: number, status: 'approved' | 'rejected') => {
-    const map = getLocalReviewStatus()
-    map[signId] = status
-    localStorage.setItem('localReviewStatus', JSON.stringify(map))
-  }
 
   /** 逐条请求详情填充自我介绍（间隔 300ms，避免限流 429） */
   const fetchDetailsForIntro = async () => {
@@ -108,27 +92,18 @@ export const useApplicationStore = defineStore('application', () => {
     try {
       const labId = useAuthStore().currentLabId
       const params: any = {}
-      if (labId) { params.labId = labId }
+      if (labId) { params.lab_id = labId }
       const res: any = await getSignList(params)
       // 后端返回 { total, list: [...] }
       const list = res?.list || res?.data?.list || []
       const arr = Array.isArray(list) ? list : []
       applicants.value = arr.map(mapSignItem)
-      usingMockData.value = arr.length === 0
-      // 应用本地保存的审核状态覆盖（持久化，刷新不丢失）
-      const localStatus = getLocalReviewStatus()
-      for (const a of applicants.value) {
-        if (localStatus[a.id]) {
-          a.status = localStatus[a.id]
-        }
-      }
       // 逐条请求详情填充手机号、部门、班级、自我介绍等列表不返回的字段
       fetchDetailsForIntro()
       return applicants.value
     } catch (error) {
       console.warn('获取报名列表失败:', error)
       applicants.value = []
-      usingMockData.value = true
       return applicants.value
     } finally {
       loading.value = false
@@ -189,42 +164,29 @@ export const useApplicationStore = defineStore('application', () => {
 
   /** 审核通过 */
   async function approveApplication(signId: number): Promise<boolean> {
-    try {
-      await approveSign(signId)
-    } catch (error) {
-      console.warn('审核通过接口失败，本地降级:', error)
-    }
-    // 无论 API 是否成功，都更新本地状态并持久化
+    await approveSign(signId)
     const item = applicants.value.find(a => a.id === signId)
     if (item) {
       item.status = 'approved'
       item.review_time = new Date().toLocaleString('zh-CN')
     }
-    setLocalReviewStatus(signId, 'approved')
     return true
   }
 
   /** 审核驳回 */
   async function rejectApplication(signId: number): Promise<boolean> {
-    try {
-      await rejectSign(signId)
-    } catch (error) {
-      console.warn('审核驳回接口失败，本地降级:', error)
-    }
-    // 无论 API 是否成功，都更新本地状态并持久化
+    await rejectSign(signId)
     const item = applicants.value.find(a => a.id === signId)
     if (item) {
       item.status = 'rejected'
       item.review_time = new Date().toLocaleString('zh-CN')
     }
-    setLocalReviewStatus(signId, 'rejected')
     return true
   }
 
   return {
     applicants,
     loading,
-    usingMockData,
     signSwitchEnabled,
     switchLoading,
     approvedApplicants,

@@ -32,8 +32,8 @@ request.interceptors.request.use(
             config.params = { ...config.params, lab_id: String(labId), labId: String(labId) }
             console.log('🔍 [拦截器] GET/DELETE query 参数:', { lab_id: String(labId), labId: String(labId) })
           }
-          // POST/PUT：body 里自动注入 lab_id
-          if (config.method === 'post' || config.method === 'put') {
+          // POST/PUT/PATCH：body 自动注入
+          if (config.method === 'post' || config.method === 'put' || config.method === 'patch') {
             if (typeof config.data === 'object' && config.data !== null && !(config.data instanceof FormData)) {
               config.data = { ...config.data, lab_id: String(labId) }
               console.log('🔍 [拦截器] POST/PUT body 注入 lab_id:', String(labId))

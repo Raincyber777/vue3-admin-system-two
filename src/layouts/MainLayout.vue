@@ -234,8 +234,6 @@ const currentRouteName = computed(() => {
     '/signin': '签到管理',
     '/homework': '作业发布',
     '/grading': '作业批改',
-    '/article': '日志管理',
-    '/announcement': '公告管理',
     '/training-course': '课程管理',
     '/training-detail': '培训名单',
     '/account': '账号管理',
