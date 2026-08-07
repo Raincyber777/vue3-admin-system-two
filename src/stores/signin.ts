@@ -97,21 +97,6 @@ const mapRecord = (item: any): SignInRecord => {
   return record
 }
 
-const MOCK_SESSIONS: SignInSession[] = [
-  {
-    id: 1, courseId: 1, courseName: 'Python 基础入门', title: '第1次课堂签到',
-    department: 'ai', className: '1班', checkinCode: '412991',
-    startTime: '2026-07-30 09:00', endTime: '2026-07-30 09:30',
-    status: 'ended', signinCount: 25, totalCount: 30, createTime: '2026-07-30 08:50',
-  },
-  {
-    id: 2, courseId: 2, courseName: 'Web 前端开发实战', title: '第1次课堂签到',
-    department: 'software', className: '1班', checkinCode: '512883',
-    startTime: '2026-07-31 09:00', endTime: '',
-    status: 'ongoing', signinCount: 18, totalCount: 22, createTime: '2026-07-31 08:55',
-  },
-]
-
 export const useSignInStore = defineStore('signin', () => {
   const sessions = ref<SignInSession[]>([])
   const loading = ref(false)
@@ -119,67 +104,21 @@ export const useSignInStore = defineStore('signin', () => {
 
   const saveSessions = () => writeStorage('signinSessions', sessions.value)
 
-  const loadDetailCache = (checkinId: number): SignInRecord[] =>
-    readStorage(`signinDetail_${checkinId}`, [] as SignInRecord[])
-
-  const saveDetailCache = (checkinId: number, records: SignInRecord[]) =>
-    writeStorage(`signinDetail_${checkinId}`, records)
-
   const fetchSessions = async () => {
     loading.value = true
-
-    // 先从本地缓存加载
-    if (sessions.value.length === 0) {
-      const cached = readStorage<any[]>('signinSessions', [])
-      if (cached.length > 0) {
-        sessions.value = cached.map(s => ({ ...s, endTime: formatTime(s.endTime) }))
-      }
-    }
 
     try {
       const res: any = await getSignInList({ page: 1, pageSize: 200 })
       const list = parseListResponse(res)
-      if (list.length > 0) {
-        const apiSessions = list.map(mapSession)
-        const apiIds = new Set(apiSessions.map(s => s.id))
-
-        // 保留本地有但 API 没有的签到
-        const localOnly = sessions.value.filter(s => !apiIds.has(s.id))
-
-        // 合并时保留本地的标题、状态、结束时间
-        const merged = apiSessions.map(api => {
-          const local = sessions.value.find(s => s.id === api.id)
-          if (local) {
-            return {
-              ...api,
-              title: local.title || api.title,
-              status: local.status,
-              endTime: local.endTime || api.endTime,
-              className: local.className || api.className,
-              startTime: local.startTime || api.startTime,
-            }
-          }
-          return api
-        })
-
-        // 过滤已删除的
-        sessions.value = [...merged, ...localOnly].filter(s => !deletedCheckinIds.has(s.id))
-        saveSessions()
-        loading.value = false
-        return
-      }
-    } catch (error) {
-      console.warn('获取签到列表失败，使用本地数据:', error)
-    }
-
-    // 过滤已删除的
-    sessions.value = sessions.value.filter(s => !deletedCheckinIds.has(s.id))
-
-    if (sessions.value.length === 0) {
-      sessions.value = [...MOCK_SESSIONS]
+      const apiSessions = list.map(mapSession)
+      sessions.value = apiSessions.filter(s => !deletedCheckinIds.has(s.id))
       saveSessions()
+    } catch (error) {
+      console.warn('获取签到列表失败:', error)
+      sessions.value = sessions.value.filter(s => !deletedCheckinIds.has(s.id))
+    } finally {
+      loading.value = false
     }
-    loading.value = false
   }
 
   const addSession = async (data: Omit<SignInSession, 'id' | 'signinCount' | 'totalCount' | 'createTime'>) => {
@@ -226,27 +165,16 @@ export const useSignInStore = defineStore('signin', () => {
   }
 
   const fetchDetail = async (signinId: number): Promise<SignInRecord[]> => {
-    const cachedRecords = loadDetailCache(signinId)
-    if (cachedRecords.length > 0) {
-      detailCache.value.set(signinId, cachedRecords)
-    }
-
     try {
       const res: any = await getSignInDetail(signinId, { pageSize: 100 })
-
       const list = parseListResponse(res)
-
-      if (list.length > 0) {
-        const mappedRecords = list.map(mapRecord)
-        saveDetailCache(signinId, mappedRecords)
-        detailCache.value.set(signinId, mappedRecords)
-        return mappedRecords
-      }
+      const mappedRecords = list.map(mapRecord)
+      detailCache.value.set(signinId, mappedRecords)
+      return mappedRecords
     } catch (error) {
-      console.warn('获取签到明细失败，使用本地缓存:', error)
+      console.warn('获取签到明细失败:', error)
+      return []
     }
-
-    return cachedRecords
   }
 
   const doManualSign = async (signinId: number, studentNo: string, _studentName?: string) => {

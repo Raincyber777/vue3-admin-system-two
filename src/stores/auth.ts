@@ -118,16 +118,20 @@ export const useAuthStore = defineStore('auth', () => {
       const payload = (res as any).data || (res as any).adminInfo || res
       if (payload) {
         // 确保兼容各种后端字段格式
+        const oldInfo = userInfo.value as any
         const normalizedInfo: any = {
           ...payload,
-          labId: payload.labId ?? payload.lab_id ?? payload.labID,
-          labName: payload.labName ?? payload.lab_name ?? payload.labNameCn ?? payload.lab,
-          role: payload.role || 'admin', // 个人中心显示用，后端未返回时默认 admin
-          roles: payload.roles ?? (payload.role ? [payload.role] : (payload.adminId ? ['admin'] : [])),
+          // labId/labName 优先从 API 取，取不到用旧值（防止 info 接口覆盖登录时的值）
+          labId: payload.labId ?? payload.lab_id ?? payload.labID ?? oldInfo?.labId ?? oldInfo?.lab_id,
+          labName: payload.labName ?? payload.lab_name ?? payload.labNameCn ?? payload.lab ?? oldInfo?.labName ?? oldInfo?.lab_name,
+          // 权限字段同理，防止被覆盖为空
+          roles: payload.roles ?? (payload.role ? [payload.role] : []) ?? oldInfo?.roles,
+          // 个人中心字段
+          role: payload.role || 'admin',
           name: payload.realName || payload.name || payload.adminName || '',
           phone: payload.phone || '',
           email: payload.email || '',
-          permissions: payload.permissions ?? [],
+          permissions: payload.permissions ?? oldInfo?.permissions ?? [],
           menus: payload.menus ?? [],
         }
 
@@ -152,8 +156,6 @@ export const useAuthStore = defineStore('auth', () => {
     const cacheKeys = [
       'adminUsers',
       'studentRecords',
-      'announcements',
-      'adminLogs',
       'localReviewStatus',
       'courseList',
       'signinList',

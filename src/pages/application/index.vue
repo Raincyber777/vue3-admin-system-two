@@ -6,14 +6,6 @@
       </template>
     </PageHeaderCard>
 
-    <!-- 模拟数据提示条 -->
-    <div v-if="usingMockData" class="mock-warning-banner">
-      <div class="mock-warning-content">
-        <el-icon class="mock-warning-icon"><WarningFilled /></el-icon>
-        <span>当前展示<strong>模拟数据</strong>，后端接口未返回有效数据或请求失败。请检查 Network 中 /v1/admin/sign/list 接口状态。</span>
-      </div>
-    </div>
-
     <!-- 筛选区域 -->
     <div class="filter-card">
       <div class="filter-header">
@@ -171,7 +163,7 @@
             </div>
           </template>
         </el-table-column>
-    
+
       </el-table>
 
       <!-- 分页组件 -->
@@ -316,8 +308,6 @@ const signSwitchEnabled = computed({
   set: () => {},
 })
 const switchLoading = computed(() => applicationStore.switchLoading)
-const usingMockData = computed(() => applicationStore.usingMockData)
-
 const handleToggleSwitch = async (): Promise<boolean> => {
   const newStatus = signSwitchEnabled.value ? '关闭' : '开启'
   try {

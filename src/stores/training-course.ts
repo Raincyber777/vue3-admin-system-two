@@ -170,14 +170,17 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
 
       const params: any = { page: 1, size: 100 }
       if (labId) {
-        params.labId = labId
         params.lab_id = labId
       }
 
+      console.log('🔍 fetchCourses 请求参数:', params)
       const res: any = await getCourseList(params)
+      console.log('🔍 fetchCourses 原始响应:', JSON.stringify(res))
       const list = parseListResponse(res)
+      console.log('🔍 fetchCourses 解析后 list 长度:', list.length)
       courses.value = list.map(mapCourseItem)
       total.value = courses.value.length
+      console.log('🔍 fetchCourses courses.value 长度:', courses.value.length)
     } catch (err: any) {
       console.warn('获取课程列表失败:', err)
       error.value = err.message || '获取课程列表失败'
@@ -212,9 +215,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       }
 
       if (labId) {
-        payload.labId = labId
         payload.lab_id = labId
-        payload.labID = labId
       }
       if (labName) {
         payload.labName = labName

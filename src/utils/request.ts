@@ -23,17 +23,25 @@ request.interceptors.request.use(
     if (userInfo) {
       try {
         const parsed = JSON.parse(userInfo)
-        const labId = parsed.labId || parsed.lab_id
-        if (labId) {
-          config.headers['X-Lab-Id'] = String(labId)
-          // GET/DELETE：query 参数同时发 labId 和 lab_id
+        const lid = parsed.lab_id || parsed.labId
+        if (lid) {
+          config.headers['X-Lab-Id'] = String(lid)
+          // GET/DELETE：query 参数
           if (config.method === 'get' || config.method === 'delete') {
-            config.params = { ...config.params, lab_id: String(labId), labId: String(labId) }
+            config.params = { ...config.params, lab_id: lid }
           }
-          // POST/PUT：body 里自动注入 lab_id
-          if (config.method === 'post' || config.method === 'put') {
+          // POST/PUT/PATCH：body 自动注入
+          if (config.method === 'post' || config.method === 'put' || config.method === 'patch') {
             if (typeof config.data === 'object' && config.data !== null && !(config.data instanceof FormData)) {
-              config.data = { ...config.data, lab_id: String(labId) }
+              config.data = { ...config.data, lab_id: lid }
+            } else if (config.data === undefined || config.data === null) {
+              config.data = { lab_id: lid }
+            } else if (typeof config.data === 'string') {
+              try {
+                const parsed = JSON.parse(config.data)
+                parsed.lab_id = lid
+                config.data = JSON.stringify(parsed)
+              } catch { /* ignore */ }
             }
           }
         }

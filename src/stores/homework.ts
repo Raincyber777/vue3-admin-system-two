@@ -7,44 +7,6 @@ import { pick, readStorage, writeStorage, createDeletedIdsManager, parseListResp
 const deletedHomeworkIds = createDeletedIdsManager('deletedHomeworkIds')
 const deletedSubmitIds = createDeletedIdsManager('deletedSubmitIds')
 
-/** 模拟作业假数据 */
-const MOCK_HOMEWORKS: Homework[] = [
-  {
-    id: 1,
-    title: '前端基础知识测验',
-    department: 'software',
-    publishDate: '2026-07-20 08:00',
-    deadline: '2026-08-05 23:59',
-    totalScore: 35,
-    status: 'published',
-    createdAt: '2026-07-19 10:00:00',
-    createdBy: '管理员',
-    questions: [
-      { id: 1, order: 1, type: 'judge', title: 'HTML 是一种编程语言。', score: 5, answer: '错误' },
-      { id: 2, order: 2, type: 'choice', title: '以下哪个是 CSS 中设置背景色的正确属性？', score: 10, options: ['A. color', 'B. background-color', 'C. font-size', 'D. border'], answer: 'B' },
-      { id: 3, order: 3, type: 'choice', title: '在 JavaScript 中，以下哪个方法用于将 JSON 字符串转换为对象？', score: 10, options: ['A. JSON.stringify()', 'B. JSON.parse()', 'C. JSON.convert()', 'D. JSON.object()'], answer: 'B' },
-      { id: 4, order: 4, type: 'essay', title: '请简述 CSS 盒模型的概念及其组成部分。', score: 10, answer: 'CSS 盒模型是网页布局的基础，每个元素都被看作一个矩形盒子。盒模型从内到外由四个部分组成：内容区域（content）、内边距（padding）、边框（border）和外边距（margin）。' },
-    ],
-  },
-  {
-    id: 2,
-    title: '人工智能导论测试',
-    department: 'software',
-    publishDate: '2026-07-22 08:00',
-    deadline: '2026-08-10 23:59',
-    totalScore: 40,
-    status: 'published',
-    createdAt: '2026-07-21 14:00:00',
-    createdBy: '管理员',
-    questions: [
-      { id: 1, order: 1, type: 'judge', title: '监督学习需要带有标签的训练数据。', score: 5, answer: '正确' },
-      { id: 2, order: 2, type: 'choice', title: '以下哪种算法属于无监督学习？', score: 10, options: ['A. 线性回归', 'B. K-means 聚类', 'C. 决策树分类', 'D. 支持向量机（SVM）'], answer: 'B' },
-      { id: 3, order: 3, type: 'essay', title: '请简述过拟合的概念以及常用的防止过拟合的方法。', score: 15, answer: '过拟合是指模型在训练数据上表现得很好，但在测试数据或新数据上表现较差的现象。常用的防止过拟合方法包括：增加训练数据量、使用正则化、Dropout、早停、交叉验证、简化模型结构。' },
-      { id: 4, order: 4, type: 'choice', title: '以下哪个激活函数可以输出负数？', score: 10, options: ['A. Sigmoid', 'B. ReLU', 'C. tanh', 'D. Softmax'], answer: 'C' },
-    ],
-  },
-]
-
 /** 单题作答 */
 export interface QuestionAnswer {
   questionId: number
@@ -86,63 +48,35 @@ export const useHomeworkStore = defineStore('homework', () => {
   const calcTotalScore = (questions: Question[]) => questions.reduce((sum, q) => sum + q.score, 0)
 
   const saveHomeworks = () => writeStorage('localHomeworks', homeworks.value)
-  const loadLocalHomeworks = (): Homework[] => readStorage('localHomeworks', [] as Homework[])
 
   const saveSubmissionsToStorage = () => writeStorage('gradingSubmissions', submissions.value)
-  const loadSubmissionsFromStorage = (): HomeworkSubmission[] => readStorage('gradingSubmissions', [] as HomeworkSubmission[])
 
   // ==================== 作业列表 ====================
   const fetchHomeworks = async () => {
     try {
       const res: any = await getHomeworkList({ page: 1, size: 100 })
       const list = parseListResponse(res)
-      const localList = [...homeworks.value]
 
-      const matchedLocalIds = new Set<number>()
-      const findLocal = (apiId: number, apiTitle: string): Homework | undefined => {
-        const byId = localList.find(l => l.id === apiId)
-        if (byId) { matchedLocalIds.add(byId.id); return byId }
-        if (apiId > 0) {
-          const byTitle = localList.find(l => l.title === apiTitle && l.id > 1000000)
-          if (byTitle) { matchedLocalIds.add(byTitle.id); return byTitle }
-        }
-        return undefined
-      }
-
-      const mappedList = list
+      homeworks.value = list
         .filter((item: any) => !deletedHomeworkIds.has(pick(item, 'homeworkId', 'homework_id', 0) as number))
-        .map((item: any) => {
-          const id = pick(item, 'homeworkId', 'homework_id', 0) as number
-          const title = pick(item, 'homeworkTitle', 'homework_title', '') as string
-          const local = findLocal(id, title)
-          return {
-            id,
-            title: local?.title || title,
-            department: local?.department || 'software' as const,
-            publishDate: local?.publishDate || (pick(item, 'createTime', 'create_time', '') as string),
-            deadline: local?.deadline || (pick(item, 'deadline', '') as string),
-            questions: local?.questions || [],
-            courseId: local?.courseId ?? pick(item, 'courseId', 'course_id', 0) as number,
-            courseName: local?.courseName || (pick(item, 'courseName', 'course_name', '') as string),
-            className: local?.className || (pick(item, 'groupName', 'group_name', '') as string),
-            totalScore: local?.totalScore || calcTotalScore(local?.questions || []),
-            status: local?.status || 'published' as const,
-            createdAt: local?.createdAt || (pick(item, 'createTime', 'create_time', '') as string),
-            createdBy: local?.createdBy || '管理员',
-          }
-        })
-
-      const notYetInApi = localList.filter(l => l.id > 1000000 && !matchedLocalIds.has(l.id) && !deletedHomeworkIds.has(l.id))
-
-      homeworks.value = [...notYetInApi, ...mappedList]
-      saveHomeworks()
+        .map((item: any) => ({
+          id: pick(item, 'homeworkId', 'homework_id', 0) as number,
+          title: pick(item, 'homeworkTitle', 'homework_title', '') as string,
+          department: 'software' as const,
+          publishDate: pick(item, 'createTime', 'create_time', '') as string,
+          deadline: pick(item, 'deadline', '') as string,
+          questions: [],
+          courseId: pick(item, 'courseId', 'course_id', 0) as number,
+          courseName: pick(item, 'courseName', 'course_name', '') as string,
+          className: pick(item, 'groupName', 'group_name', '') as string,
+          totalScore: 0,
+          status: 'published' as const,
+          createdAt: pick(item, 'createTime', 'create_time', '') as string,
+          createdBy: '管理员',
+        }))
     } catch (error) {
       console.warn('获取作业列表失败:', error)
       homeworks.value = homeworks.value.filter(h => !deletedHomeworkIds.has(h.id))
-      if (homeworks.value.length === 0) {
-        homeworks.value = [...MOCK_HOMEWORKS]
-        saveHomeworks()
-      }
     }
   }
 
@@ -270,58 +204,37 @@ export const useHomeworkStore = defineStore('homework', () => {
     try {
       const res: any = await getSubmitList(params)
       const list = parseListResponse(res)
-      if (list.length > 0) {
-        const hwMap = new Map<number, Homework>()
-        homeworks.value.forEach(hw => hwMap.set(hw.id, hw))
+      const hwMap = new Map<number, Homework>()
+      homeworks.value.forEach(hw => hwMap.set(hw.id, hw))
 
-        const apiSubmissions = list
-          .filter((item: any) => !deletedSubmitIds.has(pick(item, 'submitId', 'submit_id', 'id', 0) as number))
-          .map((item: any) => {
-            const hwId = pick(item, 'homeworkId', 'homework_id', 0) as number
-            const localHw = hwMap.get(hwId)
-            return {
-              id: pick(item, 'submitId', 'submit_id', 'id', 0) as number,
-              homeworkId: hwId,
-              homeworkTitle: pick(item, 'homeworkTitle', 'homework_title', 'title', '') || localHw?.title || (hwId ? `作业#${hwId}` : ''),
-              courseName: pick(item, 'courseName', 'course_name', '') as string,
-              studentId: pick(item, 'userId', 'user_id', 0) as number,
-              studentName: pick(item, 'realName', 'userRealName', 'real_name', 'studentName', 'name', '') as string,
-              studentNo: pick(item, 'studentNo', 'student_no', 'sno', '') as string,
-              department: 'software' as const,
-              className: pick(item, 'groupName', 'group_name', 'className', 'class_name', '') as string,
-              phone: pick(item, 'userPhone', 'user_phone', 'phone', '') as string,
-              submitTime: pick(item, 'submitTime', 'submit_time', 'createTime', '') as string,
-              submitContent: pick(item, 'submitContent', 'submit_content', '') as string,
-              submitFile: pick(item, 'submitFile', 'submit_file', '') as string,
-              answers: [] as QuestionAnswer[],
-              totalScore: pick(item, 'score', 0) as number,
-              remark: pick(item, 'remark', '') as string,
-              gradingStatus: (pick(item, 'score') != null ? 'graded' : 'ungraded') as 'graded' | 'ungraded',
-            }
-          })
-
-        const mergedSubmissions = apiSubmissions.map(api => {
-          const local = submissions.value.find(s => s.id === api.id)
-          if (local) {
-            return {
-              ...api,
-              answers: local.answers.length > 0 ? local.answers : api.answers,
-              totalScore: local.totalScore > 0 || local.remark ? local.totalScore : api.totalScore,
-              remark: local.remark || api.remark,
-              gradingStatus: local.gradingStatus === 'graded' ? 'graded' : api.gradingStatus,
-              gradedAt: local.gradedAt,
-              className: local.className || api.className,
-              studentNo: local.studentNo || api.studentNo,
-              phone: local.phone || api.phone,
-            }
+      submissions.value = list
+        .filter((item: any) => !deletedSubmitIds.has(pick(item, 'submitId', 'submit_id', 'id', 0) as number))
+        .map((item: any) => {
+          const hwId = pick(item, 'homeworkId', 'homework_id', 0) as number
+          const localHw = hwMap.get(hwId)
+          return {
+            id: pick(item, 'submitId', 'submit_id', 'id', 0) as number,
+            homeworkId: hwId,
+            homeworkTitle: pick(item, 'homeworkTitle', 'homework_title', 'title', '') || localHw?.title || (hwId ? `作业#${hwId}` : ''),
+            courseName: pick(item, 'courseName', 'course_name', '') as string,
+            studentId: pick(item, 'userId', 'user_id', 0) as number,
+            studentName: pick(item, 'realName', 'userRealName', 'real_name', 'studentName', 'name', '') as string,
+            studentNo: pick(item, 'studentNo', 'student_no', 'sno', '') as string,
+            department: 'software' as const,
+            className: pick(item, 'groupName', 'group_name', 'className', 'class_name', '') as string,
+            phone: pick(item, 'userPhone', 'user_phone', 'phone', '') as string,
+            submitTime: pick(item, 'submitTime', 'submit_time', 'createTime', '') as string,
+            submitContent: pick(item, 'submitContent', 'submit_content', '') as string,
+            submitFile: pick(item, 'submitFile', 'submit_file', '') as string,
+            answers: [] as QuestionAnswer[],
+            totalScore: pick(item, 'score', 0) as number,
+            remark: pick(item, 'remark', '') as string,
+            gradingStatus: (pick(item, 'score') != null ? 'graded' : 'ungraded') as 'graded' | 'ungraded',
           }
-          return api
         })
-        submissions.value = mergedSubmissions
-        saveSubmissionsToStorage()
-      }
     } catch (error) {
       console.warn('获取提交列表失败:', error)
+      submissions.value = []
     }
   }
 
@@ -332,15 +245,6 @@ export const useHomeworkStore = defineStore('homework', () => {
 
     const hwMap = new Map<number, Homework>()
     homeworks.value.forEach(hw => hwMap.set(hw.id, hw))
-
-    let localSub = submissions.value.find(s => s.id === submitId)
-    if (!localSub) {
-      const cachedList = loadSubmissionsFromStorage()
-      localSub = cachedList.find(s => s.id === submitId)
-      if (localSub && !submissions.value.some(s => s.id === submitId)) {
-        submissions.value.push({ ...localSub })
-      }
-    }
 
     try {
       const res: any = await getSubmitDetail(submitId)
@@ -355,12 +259,8 @@ export const useHomeworkStore = defineStore('homework', () => {
         const rawContent = pick(detail, 'submitContent', 'submit_content', 'content', 'answerContent', 'answers', '')
         const answers = typeof rawContent === 'string' ? parseSubmitContent(rawContent) : parseSubmitContent(JSON.stringify(rawContent))
 
-        const localScore = localSub ? localSub.totalScore : undefined
-        const savedRemark = localSub?.remark ?? ''
-        const savedStatus = localSub?.gradingStatus
-
-        const studentNoValue = (pick(detail, 'studentNo', 'student_no', 'userStudentNo', 'user_student_no', 'sno', 'studentSn', 'student_id', 'studentId') as string) || localSub?.studentNo || ''
-        const phoneValue = (pick(detail, 'userPhone', 'user_phone', 'phone', 'mobile', 'userMobile', 'user_mobile') as string) || localSub?.phone || ''
+        const studentNoValue = (pick(detail, 'studentNo', 'student_no', 'userStudentNo', 'user_student_no', 'sno', 'studentSn', 'student_id', 'studentId') as string) || ''
+        const phoneValue = (pick(detail, 'userPhone', 'user_phone', 'phone', 'mobile', 'userMobile', 'user_mobile') as string) || ''
 
         const result: HomeworkSubmission = {
           id: detailId,
@@ -371,15 +271,15 @@ export const useHomeworkStore = defineStore('homework', () => {
           studentName: pick(detail, 'userRealName', 'user_real_name', 'userName', 'realName', 'real_name', 'name', '') as string,
           studentNo: studentNoValue || '-',
           department: 'software' as const,
-          className: (pick(detail, 'className', 'class_name', 'userClass') as string) || localSub?.className || '',
+          className: (pick(detail, 'className', 'class_name', 'userClass') as string) || '',
           phone: phoneValue || '',
           submitTime: pick(detail, 'submitTime', 'submit_time', 'createTime', '') as string,
           submitContent: typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent),
           submitFile: pick(detail, 'submitFile', 'submit_file', 'fileUrl', '') as string,
-          answers: localSub?.answers?.length ? localSub.answers : answers,
-          totalScore: localScore !== undefined && localScore !== null ? localScore : (score ?? 0),
-          remark: savedRemark || pick(detail, 'remark', 'comment', '') as string,
-          gradingStatus: savedStatus || (score !== null && score !== undefined ? 'graded' : 'ungraded') as 'graded' | 'ungraded',
+          answers,
+          totalScore: score ?? 0,
+          remark: pick(detail, 'remark', 'comment', '') as string,
+          gradingStatus: (score !== null && score !== undefined ? 'graded' : 'ungraded') as 'graded' | 'ungraded',
         }
 
         const listRow = submissions.value.find(s => s.id === detailId)
@@ -387,14 +287,13 @@ export const useHomeworkStore = defineStore('homework', () => {
           listRow.className = result.className || listRow.className
           listRow.studentNo = result.studentNo || listRow.studentNo
           listRow.phone = result.phone || listRow.phone
-          saveSubmissionsToStorage()
         }
         return result
       }
     } catch (error) {
       console.warn('获取提交详情失败:', error)
     }
-    return localSub || loadSubmissionsFromStorage().find(s => s.id === submitId) || null
+    return null
   }
 
   const saveAnswerGrade = (submissionId: number, questionId: number, score: number, comment: string) => {

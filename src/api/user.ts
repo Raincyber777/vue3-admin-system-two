@@ -116,6 +116,8 @@ export interface CreateUserParams {
   major?: string
   college?: string
   studentId?: string
+  labId?: string
+  lab_id?: string
 }
 
 /**

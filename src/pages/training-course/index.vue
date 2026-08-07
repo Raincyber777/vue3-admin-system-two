@@ -604,7 +604,7 @@ const handleSave = async () => {
   const data = validateForm()
   if (!data) return
   saveLoading.value = true
-  store.updateCourse(editId.value, { ...data, updatedAt: new Date().toLocaleString('zh-CN') })
+  await store.updateCourse(editId.value, { ...data, updatedAt: new Date().toLocaleString('zh-CN') })
   saveLoading.value = false
   dialogVisible.value = false
   currentPage.value = 1
@@ -616,7 +616,7 @@ const handleSaveDraft = async () => {
   const data = validateForm()
   if (!data) return
   saveLoading.value = true
-  store.addCourse({ ...data, status: 'draft', registrationStatus: 'not_started' })
+  await store.addCourse({ ...data, status: 'draft', registrationStatus: 'not_started' })
   saveLoading.value = false
   dialogVisible.value = false
   currentPage.value = 1
@@ -637,15 +637,15 @@ const handlePublish = (row: Course) => {
 }
 
 /** 确认发布 */
-const doPublish = () => {
+const doPublish = async () => {
   saveLoading.value = true
   if (pendingPublishTarget === 'form') {
     const data = validateForm()!
-    store.addCourse({ ...data, status: 'published', registrationStatus: 'ongoing' })
+    await store.addCourse({ ...data, status: 'published', registrationStatus: 'ongoing' })
     dialogVisible.value = false
     ElMessage.success('课程已发布')
   } else if (pendingPublishTarget) {
-    store.publishCourse(pendingPublishTarget)
+    await store.publishCourse(pendingPublishTarget)
     ElMessage.success('课程已发布')
   }
   saveLoading.value = false
