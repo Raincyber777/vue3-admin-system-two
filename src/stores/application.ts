@@ -11,6 +11,14 @@ const mapStatus = (status: number): 'pending' | 'approved' | 'rejected' => {
   return 'pending'
 }
 
+/** 部门数字 → 名称 */
+const departmentLabel = (val: any): string => {
+  if (!val && val !== 0) return ''
+  if (val === 1 || val === '1') return '软件开发实验室'
+  if (val === 2 || val === '2') return '人工智能实验室'
+  return String(val)
+}
+
 /** 将后端 SignItem 映射为前端 CourseEnrollmentItem（匹配列表接口实际字段） */
 const mapSignItem = (s: any): CourseEnrollmentItem => ({
   id: s.signId ?? s.sign_id ?? s.id ?? 0,
@@ -18,7 +26,7 @@ const mapSignItem = (s: any): CourseEnrollmentItem => ({
   course_title: s.courseName ?? s.course_name ?? '',
   student_id: s.studentId ?? s.student_id ?? '',
   student_name: s.realName ?? s.real_name ?? s.name ?? '',
-  department: s.departmentName || s.department || '',
+  department: s.departmentName || departmentLabel(s.department) || '',
   college: s.college || '',
   major: s.major || '',
   class_name: s.className ?? s.class_name ?? '',
@@ -35,7 +43,7 @@ const mapSignDetail = (d: any): CourseEnrollmentItem => ({
   course_title: '', // 后端详情不返回课程信息
   student_id: d.studentId || d.student_id || '',
   student_name: d.name || d.user_real_name || d.real_name || '',
-  department: d.departmentText || d.department || '',
+  department: d.departmentText || d.departmentName || departmentLabel(d.department) || '',
   college: d.college || '',
   major: d.major || '',
   class_name: d.className || d.class_name || '',

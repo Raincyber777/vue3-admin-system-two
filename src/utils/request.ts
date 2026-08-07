@@ -26,9 +26,15 @@ request.interceptors.request.use(
         const labId = parsed.labId || parsed.lab_id
         if (labId) {
           config.headers['X-Lab-Id'] = String(labId)
-          // 同时作为 query 参数兜底
+          // GET/DELETE：query 参数同时发 labId 和 lab_id
           if (config.method === 'get' || config.method === 'delete') {
-            config.params = { ...config.params, labId: String(labId) }
+            config.params = { ...config.params, lab_id: String(labId), labId: String(labId) }
+          }
+          // POST/PUT：body 里自动注入 lab_id
+          if (config.method === 'post' || config.method === 'put') {
+            if (typeof config.data === 'object' && config.data !== null && !(config.data instanceof FormData)) {
+              config.data = { ...config.data, lab_id: String(labId) }
+            }
           }
         }
       } catch { /* ignore */ }
