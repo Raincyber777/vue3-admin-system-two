@@ -297,8 +297,8 @@ const filteredPeople = computed(() => {
   if (!peopleSearch.value) return peopleList.value
   const search = peopleSearch.value.toLowerCase()
   return peopleList.value.filter(p =>
-    p.name.toLowerCase().includes(search) ||
-    p.department.toLowerCase().includes(search)
+    (p.name || '').toLowerCase().includes(search) ||
+    (p.department || '').toLowerCase().includes(search)
   )
 })
 

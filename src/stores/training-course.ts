@@ -81,9 +81,9 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       const keyword = searchKeyword.value.toLowerCase()
       result = result.filter(c =>
         c.name.toLowerCase().includes(keyword) ||
-        c.instructor.toLowerCase().includes(keyword) ||
-        c.trainingTargets.some(t => TRAINING_TARGET_OPTIONS.find(o => o.value === t)?.label.toLowerCase().includes(keyword)) ||
-        c.courseTags.some(tag => tag.toLowerCase().includes(keyword))
+        (c.instructor || '').toLowerCase().includes(keyword) ||
+        c.trainingTargets.some(t => (TRAINING_TARGET_OPTIONS.find(o => o.value === t)?.label || '').toLowerCase().includes(keyword)) ||
+        c.courseTags.some(tag => (tag || '').toLowerCase().includes(keyword))
       )
     }
     return result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())

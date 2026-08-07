@@ -305,8 +305,8 @@ const filteredSubmissions = computed(() => {
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
     list = list.filter(s =>
-      s.studentName.toLowerCase().includes(keyword) ||
-      s.studentNo.toLowerCase().includes(keyword)
+      (s.studentName || '').toLowerCase().includes(keyword) ||
+      (s.studentNo || '').toLowerCase().includes(keyword)
     )
   }
 

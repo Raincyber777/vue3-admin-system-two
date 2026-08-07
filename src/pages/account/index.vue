@@ -14,6 +14,11 @@
 
     <!-- 筛选 -->
     <div class="toolbar-card">
+      <el-radio-group v-model="filterRole" size="small" style="margin-left:12px">
+        <el-radio-button value="all">全部身份</el-radio-button>
+        <el-radio-button value="admin">管理员</el-radio-button>
+        <el-radio-button value="student">学员</el-radio-button>
+      </el-radio-group>
       <el-radio-group v-model="filterStatus" size="small" style="margin-left:12px">
         <el-radio-button value="all">全部状态</el-radio-button>
         <el-radio-button value="active">启用</el-radio-button>
@@ -33,6 +38,13 @@
         <el-table-column type="selection" width="50" />
         <el-table-column type="index" label="序号" width="65" />
         <el-table-column prop="name" label="姓名" min-width="100" />
+        <el-table-column label="身份" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.role === 'admin' ? 'danger' : 'success'" size="small">
+              {{ row.role === 'admin' ? '管理员' : '学员' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="email" label="邮箱" min-width="180" />
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
@@ -165,6 +177,7 @@ import PageHeaderCard from '@/components/PageHeaderCard.vue'
 const store = useAccountStore()
 
 const searchKeyword = ref('')
+const filterRole = ref('all')
 const filterStatus = ref('all')
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -177,6 +190,7 @@ const filteredList = computed(() => {
     const kw = searchKeyword.value.trim().toLowerCase()
     list = list.filter(u => (u.name || '').toLowerCase().includes(kw) || (u.email || '').toLowerCase().includes(kw))
   }
+  if (filterRole.value !== 'all') list = list.filter(u => u.role === filterRole.value)
   if (filterStatus.value !== 'all') list = list.filter(u => u.status === filterStatus.value)
   return list
 })
@@ -202,7 +216,7 @@ const handleRefresh = async () => {
 }
 
 const resetFilter = () => {
-  searchKeyword.value = ''; filterStatus.value = 'all'; currentPage.value = 1
+  searchKeyword.value = ''; filterRole.value = 'all'; filterStatus.value = 'all'; currentPage.value = 1
 }
 
 const handleEnable = async (row: User) => {

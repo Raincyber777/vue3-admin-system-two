@@ -397,10 +397,10 @@ const handleBatchReject = async () => {
 const filteredData = computed(() => {
   let data = [...allData.value]
   if (filterForm.studentName) {
-    data = data.filter(item => item.student_name.toLowerCase().includes(filterForm.studentName.toLowerCase()))
+    data = data.filter(item => (item.student_name || '').toLowerCase().includes(filterForm.studentName.toLowerCase()))
   }
   if (filterForm.studentId) {
-    data = data.filter(item => item.student_id.toLowerCase().includes(filterForm.studentId))
+    data = data.filter(item => (item.student_id || '').toLowerCase().includes(filterForm.studentId))
   }
   if (filterForm.college) {
     data = data.filter(item => item.college === filterForm.college)

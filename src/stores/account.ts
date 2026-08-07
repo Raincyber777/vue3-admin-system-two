@@ -23,22 +23,6 @@ export interface User {
 
 export const useAccountStore = defineStore('account', () => {
   // 规范化用户数据，防止旧数据缺少字段导致 undefined 报错
-  const normalizeUser = (u: any): User => ({
-    id: u.id ?? 0,
-    username: u.username || '',
-    name: u.name || u.real_name || u.realName || '',
-    email: u.email || '',
-    role: u.role === 'admin' ? 'admin' : 'student',
-    status: u.status === 'disabled' ? 'disabled' : 'active',
-    studentNo: u.studentNo || u.student_no || u.studentId || u.student_id || '',
-    password: u.password || '',
-    phone: u.phone || '',
-    department: u.department === 'ai' ? 'ai' : 'software',
-    className: u.className || u.class_name || u.class || '',
-    createdAt: u.createdAt || u.createTime || u.created_at || u.create_time || '',
-    updatedAt: u.updatedAt || u.updateTime || u.updated_at || u.update_time || '',
-  })
-
   const users = ref<User[]>([])
   const total = computed(() => users.value.length)
 
@@ -70,6 +54,7 @@ export const useAccountStore = defineStore('account', () => {
       const data = res.data || res
       const list = data?.list || data?.records || (Array.isArray(data) ? data : [])
       users.value = list.map(mapUserItem)
+      console.log('📥 fetchUsers - list 长度:', list.length, '第一条 role:', list[0]?.role, 'name:', list[0]?.name || list[0]?.realName)
       return users.value
     } catch (error) {
       console.warn('获取用户列表失败:', error)
@@ -208,11 +193,11 @@ export const useAccountStore = defineStore('account', () => {
 
   /** 添加用户（API 优先，失败降级本地） */
   async function addUser(user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>) {
-    const now = new Date().toLocaleString('zh-CN')
     let backendId: number | null = null
 
     // 调用后端 API
     try {
+      console.log('📤 创建用户 - role:', user.role, 'username:', user.username, 'lab_id 由拦截器注入')
       const res: any = await createUser({
         username: user.username || user.email,
         realName: user.name,
@@ -226,20 +211,24 @@ export const useAccountStore = defineStore('account', () => {
         major: undefined,
         college: undefined,
       })
-      // 尝试从响应中获取后端 ID（兼容多种响应格式）
-      backendId = res?.data?.userId ?? res?.data?.user_id ?? res?.userId ?? res?.user_id ?? res?.data?.id ?? res?.id ?? null
+      // 尝试从响应中获取后端 ID（兼容多种响应格式，包括 adminId/userId）
+      backendId = res?.data?.userId ?? res?.data?.user_id ?? res?.data?.adminId ?? res?.data?.admin_id ?? res?.userId ?? res?.user_id ?? res?.adminId ?? res?.admin_id ?? res?.data?.id ?? res?.id ?? null
     } catch (error: any) {
-      // 422 校验错误（如账号已存在）直接抛出，不降级本地
-      if (error?.response?.status === 422) {
-        const detail = error?.response?.data?.detail || error?.response?.data?.message || '创建失败，请检查填写信息'
-        throw new Error(typeof detail === 'string' ? detail : '创建失败，请检查填写信息')
+      const status = error?.response?.status
+      // 422/409 等客户端错误直接抛出，不降级
+      if (status === 422 || status === 409) {
+        const detail = error?.response?.data?.msg || error?.response?.data?.detail || error?.response?.data?.message || '创建失败'
+        throw new Error(typeof detail === 'string' ? detail : '创建失败')
       }
-      console.warn('创建用户接口失败，本地降级:', error)
+      console.warn('创建用户接口失败:', error)
+      throw error
     }
 
-    // 优先用后端 ID，否则生成本地 ID
-    const newId = backendId ?? (Math.max(...users.value.map(u => u.id), 0) + 1)
-    users.value.unshift({ ...user, id: newId, createdAt: now, updatedAt: now })
+    // 只要 API 调用没抛异常，就认为创建成功，刷新列表
+    // （后端创建管理员返回 adminId，创建学员返回 userId，都要兼容）
+    console.log('✅ 创建接口返回，backendId:', backendId, '响应:', JSON.stringify(res?.data || res))
+    await fetchUsers()
+    console.log('✅ 列表已刷新，当前用户数:', users.value.length)
 
 
   }
