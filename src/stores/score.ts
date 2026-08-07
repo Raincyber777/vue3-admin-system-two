@@ -100,19 +100,11 @@ export const useScoreStore = defineStore('score', () => {
           return api
         })
         students.value = merged
-        saveStudents()
         return
       }
     } catch (error) {
-      console.warn('获取表现汇总列表失败，使用本地数据:', error)
+      console.warn('获取表现汇总列表失败:', error)
     }
-
-    const cached = localStorage.getItem('studentRecords')
-    if (cached) {
-      try { students.value = JSON.parse(cached); return } catch { /* ignore */ }
-    }
-    students.value = [...MOCK_STUDENTS]
-    localStorage.setItem('studentRecords', JSON.stringify(students.value))
   }
 
   /** 获取学员表现详情（API 优先，失败降级本地） */
@@ -128,10 +120,6 @@ export const useScoreStore = defineStore('score', () => {
       console.warn('获取表现详情接口失败，使用本地数据:', error)
     }
     return students.value.find(s => s.id === userId) || null
-  }
-
-  const saveStudents = () => {
-    localStorage.setItem('studentRecords', JSON.stringify(students.value))
   }
 
   return { students, fetchStudents, fetchPerformanceDetail }

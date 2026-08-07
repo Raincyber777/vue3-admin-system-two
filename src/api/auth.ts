@@ -12,6 +12,8 @@ export interface UserInfo {
   id?: number
   account?: string
   name?: string
+  realName?: string
+  adminName?: string
   email?: string
   avatar?: string
   phone?: string

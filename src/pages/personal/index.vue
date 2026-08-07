@@ -82,7 +82,10 @@
             </div>
           </template>
           <div class="info-content">
-
+            <div class="info-item">
+              <span class="info-label">姓名</span>
+              <span class="info-value">{{ (userInfo as any)?.name || (userInfo as any)?.realName || '-' }}</span>
+            </div>
             <div class="info-item">
               <span class="info-label">邮箱</span>
               <span class="info-value">{{ userInfo?.email || '-' }}</span>
@@ -159,17 +162,15 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
-import { useUserStore } from '@/stores/user'
 import { useApplicationStore } from '@/stores/application'
 import { changePassword, sendCode, resetPassword } from '@/api/auth'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const userStore = useUserStore()
 const applicationStore = useApplicationStore()
 
-const userInfo = computed(() => authStore.userInfo || userStore.userInfo)
+const userInfo = computed(() => authStore.userInfo)
 
 // 数据统计 - 从applicationStore获取
 const pendingCount = computed(() => applicationStore.pendingApplicants.length)
@@ -313,7 +314,6 @@ const handleLogout = async () => {
 
 onMounted(async () => {
   await authStore.fetchUserInfo()
-  userStore.loadUserInfo()
 })
 
 onUnmounted(() => {

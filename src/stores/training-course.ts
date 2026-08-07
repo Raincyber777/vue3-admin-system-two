@@ -222,43 +222,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
       }
       payload.department = labId === 'ai' ? 'ai' : 'software'
 
-      const createRes: any = await createCourse(payload)
-
-      // 从创建响应中提取课程 ID
-      const newCourseId = createRes?.data?.courseId || createRes?.data?.course_id || createRes?.data?.id
-
-      // 构建完整的 Course 对象（合并前端表单数据和后端返回的 ID）
-      const newCourse: Course = {
-        id: String(newCourseId || Date.now()),
-        name: data.name,
-        status: data.status || 'draft',
-        registrationStatus: 'ongoing',
-        trainingTargets: [],
-        maxParticipants: data.maxParticipants || 50,
-        currentParticipants: 0,
-        timeType: data.timeType || 'fixed',
-        startTime: data.startTime || '待定',
-        endTime: data.endTime || '待定',
-        flexibleTime: data.flexibleTime,
-        trainingLocation: data.trainingLocation || '待定',
-        instructor: data.instructor || '待定',
-        className: data.className || '',
-        displayClassName: data.className ? extractClassName(data.className) : '',
-        prerequisites: '',
-        courseTags: [],
-        description: data.description || '',
-        coverImg: (data as any).coverImg || '',
-        chapters: [],
-        linkedAttendance: false,
-        linkedScore: false,
-        linkedAnnouncement: false,
-        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        publishedAt: data.status === 'published' ? new Date().toISOString() : undefined,
-        department: labId === 'ai' ? 'ai' : 'software',
-      }
-
-      // 刷新列表
+      await createCourse(payload)
       await fetchCourses()
 
       return true
@@ -311,6 +275,7 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     try {
       await deleteCourseApi(id)
       // 从本地缓存删除
+
       await fetchCourses()
       ElMessage.success('课程已删除')
     } catch (err: any) {
@@ -328,8 +293,8 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = ''
     try {
       await updateCourseStatus(id, 1)
-      const course = courses.value.find(c => c.id === id)
-      if (course) course.status = 'published'
+      const c = courses.value.find(c => c.id === id)
+      if (c) c.status = 'published'
       await fetchCourses()
       ElMessage.success('课程已发布')
     } catch (err: any) {
@@ -345,8 +310,8 @@ export const useTrainingCourseStore = defineStore('trainingCourse', () => {
     error.value = ''
     try {
       await updateCourseStatus(id, 0)
-      const course = courses.value.find(c => c.id === id)
-      if (course) course.status = 'draft'
+      const c = courses.value.find(c => c.id === id)
+      if (c) c.status = 'draft'
       await fetchCourses()
       ElMessage.success('课程已下架')
     } catch (err: any) {
