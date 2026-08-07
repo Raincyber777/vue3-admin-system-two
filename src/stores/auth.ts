@@ -81,6 +81,7 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await loginApi(params)
     // 拦截器已解包 response.data，此处 res = { code, msg, data: { accessToken, ... } }
     const payload = (res as any).data
+    console.log('🔍 [登录] 后端返回 payload:', { labId: payload?.labId, lab_id: payload?.lab_id, labName: payload?.labName, adminName: payload?.adminName, realName: payload?.realName })
     if (payload?.accessToken) {
       setToken(payload.accessToken, payload.refreshToken || payload.refresh_token)
       const info = payload.adminInfo || payload.user || payload.userInfo || payload.user_info || payload

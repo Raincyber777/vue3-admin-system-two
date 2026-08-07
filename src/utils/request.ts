@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const request = axios.create({
-  baseURL: BASE_URL,
+  baseURL: 'http://p576b769.natappfree.cc/api',
   timeout: 15000,
   headers: {
     'Content-Type': 'application/json'
@@ -24,18 +24,23 @@ request.interceptors.request.use(
       try {
         const parsed = JSON.parse(userInfo)
         const labId = parsed.labId || parsed.lab_id
+        console.log('🔍 [拦截器] 当前登录账号:', parsed.adminName || parsed.username, '| labId:', labId, '| labName:', parsed.labName, '| 请求:', config.method?.toUpperCase(), config.url)
         if (labId) {
           config.headers['X-Lab-Id'] = String(labId)
           // GET/DELETE：query 参数同时发 labId 和 lab_id
           if (config.method === 'get' || config.method === 'delete') {
             config.params = { ...config.params, lab_id: String(labId), labId: String(labId) }
+            console.log('🔍 [拦截器] GET/DELETE query 参数:', { lab_id: String(labId), labId: String(labId) })
           }
           // POST/PUT：body 里自动注入 lab_id
           if (config.method === 'post' || config.method === 'put') {
             if (typeof config.data === 'object' && config.data !== null && !(config.data instanceof FormData)) {
               config.data = { ...config.data, lab_id: String(labId) }
+              console.log('🔍 [拦截器] POST/PUT body 注入 lab_id:', String(labId))
             }
           }
+        } else {
+          console.warn('🔍 [拦截器] ⚠️ labId 为空！userInfo 原始数据:', parsed)
         }
       } catch { /* ignore */ }
     }
