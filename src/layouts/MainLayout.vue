@@ -162,7 +162,7 @@
                 <el-icon><UserFilled /></el-icon>
               </el-avatar>
               <div class="user-text">
-                <span class="user-name">{{ authStore.userInfo?.name || userStore.userInfo.username }}</span>
+                <span class="user-name">{{ authStore.userInfo?.name || '管理员' }}</span>
                 <span class="user-role">{{ authStore.currentLabName }} · {{ authStore.roles.join('/') || '管理员' }}</span>
               </div>
               <el-icon class="arrow-icon"><ArrowDown /></el-icon>
@@ -197,7 +197,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { useUserStore } from '@/stores/user'
 import { useAuthStore } from '@/stores/auth'
 import { getLabDisplayName } from '@/utils/permission'
 import {
@@ -208,12 +207,9 @@ import {
 const route = useRoute()
 const router = useRouter()
 const isCollapse = ref(false)
-const userStore = useUserStore()
 const authStore = useAuthStore()
 
 onMounted(async () => {
-  userStore.loadUserInfo()
-
   // 页面加载时获取最新的用户信息（包括实验室名称）
   if (authStore.isAuthenticated && !authStore.currentLabName) {
     await authStore.fetchUserInfo()

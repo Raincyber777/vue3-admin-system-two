@@ -93,11 +93,6 @@ export const useHomeworkStore = defineStore('homework', () => {
 
   // ==================== 作业列表 ====================
   const fetchHomeworks = async () => {
-    const cached = loadLocalHomeworks()
-    if (cached.length > 0 && homeworks.value.length === 0) {
-      homeworks.value = cached
-    }
-
     try {
       const res: any = await getHomeworkList({ page: 1, size: 100 })
       const list = parseListResponse(res)
@@ -272,9 +267,6 @@ export const useHomeworkStore = defineStore('homework', () => {
   })
 
   const fetchSubmissions = async (params?: { groupName?: string; homeworkId?: number | string; courseId?: number | string }) => {
-    const cachedSubs = loadSubmissionsFromStorage()
-    if (cachedSubs.length > 0) submissions.value = cachedSubs
-
     try {
       const res: any = await getSubmitList(params)
       const list = parseListResponse(res)
