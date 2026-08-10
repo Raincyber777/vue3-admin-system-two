@@ -125,8 +125,8 @@ const handleLogin = async () => {
       ElMessage.error(result.message || '登录失败')
     }
   } catch (error: any) {
-    console.log('登录错误:', error)
-    ElMessage.error(error.message || '登录失败，请重试')
+    const msg = error?.response?.data?.msg || error?.response?.data?.message || error?.message
+    ElMessage.error(msg && !msg.includes('status code') ? msg : '用户名或密码错误')
   } finally {
     isLoading.value = false
   }

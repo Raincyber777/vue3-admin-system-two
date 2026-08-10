@@ -260,19 +260,15 @@
         </div>
 
         <!-- 审核信息模块 -->
-        <div v-if="currentDetail.review_remark || currentDetail.review_time" class="module-card review-module">
+        <div v-if="currentDetail.review_time" class="module-card review-module">
           <div class="module-header">
             <span class="module-icon review-icon"></span>
             <span class="module-title">审核信息</span>
           </div>
           <div class="info-grid">
-            <div class="info-cell full">
-              <span class="info-label">审核意见</span>
-              <span class="info-value review-text">{{ currentDetail.review_remark || '暂无' }}</span>
-            </div>
             <div class="info-cell">
               <span class="info-label">审核时间</span>
-              <span class="info-value">{{ formatDate(currentDetail.review_time) || '-' }}</span>
+              <span class="info-value">{{ formatDate(currentDetail.review_time) }}</span>
             </div>
           </div>
         </div>
@@ -498,7 +494,6 @@ const handleViewDetail = async (row: CourseEnrollmentItem) => {
     // 把详情数据回写到列表行（不同步 status，列表和详情的状态字段含义可能不同）
     row.self_intro = detail.self_intro || row.self_intro
     row.phone = detail.phone || row.phone
-    row.review_remark = detail.review_remark || row.review_remark
     row.review_time = detail.review_time || row.review_time
   }
   // 列表数据为主，详情补充；status 以列表为准，不覆盖
@@ -566,7 +561,6 @@ const handleExport = async () => {
       '自我介绍': item.self_intro,
       '状态': getStatusText(item.status),
       '报名时间': formatDate(item.enrollment_time),
-      '审核意见': item.review_remark || '',
       '审核时间': formatDate(item.review_time) || '',
     }))
 
@@ -575,7 +569,7 @@ const handleExport = async () => {
     ws['!cols'] = [
       { wch: 6 }, { wch: 10 }, { wch: 14 }, { wch: 18 }, { wch: 22 },
       { wch: 26 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 30 },
-      { wch: 10 }, { wch: 20 }, { wch: 30 }, { wch: 20 },
+      { wch: 10 }, { wch: 20 }, { wch: 20 },
     ]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '报名名单')

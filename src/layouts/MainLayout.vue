@@ -263,9 +263,8 @@ const handleCommand = (command) => {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning'
-      }).then(() => {
-        authStore.logout()
-        ElMessage.success('已退出登录')
+      }).then(async () => {
+        await authStore.logout()
         router.push('/login')
       }).catch(() => {})
       break

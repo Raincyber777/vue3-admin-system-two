@@ -64,7 +64,7 @@ import { ElMessage } from 'element-plus'
 import { Collection, Download, Upload } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import PageHeaderCard from '@/components/PageHeaderCard.vue'
-import { getClassList, exportClassList, type ClassListItem } from '@/api/training'
+import { getClassList, type ClassListItem } from '@/api/training'
 import { importSignList } from '@/api/sign'
 
 // ==================== 数据 ====================
@@ -99,18 +99,18 @@ const onPageChange = (p: number) => { currentPage.value = p }
 const handleExport = async () => {
   exportLoading.value = true
   try {
-    const gid = filterClass.value !== 'all' ? (classGroupMap[filterClass.value] || '') : ''
-    const res = await exportClassList(gid)
-    const rawList = (res as any).data?.list || (res as any).list || []
+    // 直接使用前端已加载的 filteredList（"全部班级"场景已合并三个班数据）
+    // 避免再次调用 exportClassList('') 时后端只返回一班数据的问题
+    const rawList = filteredList.value
     const exportData = rawList.map((item: any, i: number) => ({
       '序号': i + 1,
-      '姓名': item['姓名'] || item.name || '',
-      '学号': item['学号'] || item.studentId || '',
-      '学院': item['学院'] || item.college || '',
-      '专业': item['专业'] || item.major || '',
-      '班级': item['班级'] || item.className || '',
-      '分班': item['分班'] || item.groupName || '',
-      '手机号': item['手机号'] || item.phone || '',
+      '姓名': item.name || '',
+      '学号': item.studentId || '',
+      '学院': item.college || '',
+      '专业': item.major || '',
+      '班级': item.className || '',
+      '分班': item.groupName || '',
+      '手机号': item.phone || '',
     }))
     const ws = XLSX.utils.json_to_sheet(exportData)
     ws['!cols'] = [

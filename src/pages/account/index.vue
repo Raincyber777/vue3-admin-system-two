@@ -123,7 +123,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="createForm.role === 'admin' ? '用户名' : '学号'" required>
-              <el-input v-model="createForm.studentNo" :placeholder="createForm.role === 'admin' ? '请输入登录用户名' : '请输入学号'" maxlength="20" />
+              <el-input v-model="createForm.studentNo" :placeholder="createForm.role === 'admin' ? '请输入登录用户名' : '请输入学号'" maxlength="20" oninput="value=value.replace(/[^\d]/g,'')" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -144,10 +144,10 @@
         <!-- 管理员字段 -->
         <template v-if="createForm.role === 'admin'">
           <el-form-item label="电话号码">
-            <el-input v-model="createForm.phone" placeholder="请输入手机号码" maxlength="11" />
+            <el-input v-model="createForm.phone" placeholder="请输入手机号码" maxlength="11" oninput="value=value.replace(/[^\d]/g,'')" />
           </el-form-item>
           <el-form-item label="邮箱">
-            <el-input v-model="createForm.email" placeholder="请输入邮箱地址" maxlength="60" />
+            <el-input v-model="createForm.email" placeholder="请输入邮箱地址" maxlength="60" type="email" />
           </el-form-item>
         </template>
 
@@ -340,6 +340,20 @@ const handleCreateUser = async () => {
 
   if (!createForm.name.trim()) { ElMessage.warning('请输入姓名'); return }
   if (!createForm.studentNo.trim()) { ElMessage.warning(isAdmin ? '请输入用户名' : '请输入学号'); return }
+
+  // 邮箱验证
+  if (createForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createForm.email)) {
+    ElMessage.warning('请输入正确的邮箱格式'); return
+  }
+
+  // 学号验证（数字且不超过20位）
+  if (!/^\d+$/.test(createForm.studentNo)) { ElMessage.warning('学号/用户名只能输入数字'); return }
+  if (createForm.studentNo.length > 20) { ElMessage.warning('学号/用户名不能超过20位'); return }
+
+  // 电话验证（数字且不超过11位）
+  if (createForm.phone && (!/^\d+$/.test(createForm.phone) || createForm.phone.length > 11)) {
+    ElMessage.warning('电话号码格式不正确（11位数字）'); return
+  }
 
   if (!isAdmin) {
     if (!createForm.email.trim()) { ElMessage.warning('请输入邮箱'); return }

@@ -81,7 +81,7 @@ const mapRecord = (item: any): SignInRecord => {
     studentName: pick(item, 'realName', 'real_name', 'userRealName', 'name', 'userName', 'username', 'studentName', 'student_name', 'nickname', '') as string,
     studentNo: pick(item, 'studentId', 'student_no', 'studentNo', 'sno', 'student_id', 'account', 'user_no', '') as string,
     department: pick(item, 'college', 'department', 'dept_name', 'deptName', '') as string,
-    className: pick(item, 'major', 'class_name', 'className', 'cls_name', 'clsName', '') as string,
+    className: pick(item, 'className', 'class_name', 'cls_name', 'clsName', '') as string,
     signinTime: pick(item, 'checkinTime', 'checkin_time', 'signTime', 'sign_time', 'createTime', 'create_time', 'created_at', 'submitTime', '') as string,
     status: (() => {
       // 优先使用 isSigned 布尔值判断签到状态
@@ -110,14 +110,35 @@ export const useSignInStore = defineStore('signin', () => {
     try {
       const res: any = await getSignInList({ page: 1, pageSize: 200 })
       const list = parseListResponse(res)
-      const apiSessions = list.map(mapSession)
-      sessions.value = apiSessions.filter(s => !deletedCheckinIds.has(s.id))
+      const apiSessions = list.map(mapSession).filter((s: SignInSession) => !deletedCheckinIds.has(s.id))
+      sessions.value = apiSessions
       saveSessions()
+      // 后端签到列表不返回班级字段，从签到明细接口获取 className
+      fetchClassNamesForSessions()
     } catch (error) {
       console.warn('获取签到列表失败:', error)
       sessions.value = sessions.value.filter(s => !deletedCheckinIds.has(s.id))
     } finally {
       loading.value = false
+    }
+  }
+
+  /** 逐条请求签到明细，从中提取 className 填充到列表（间隔 300ms 避免限流） */
+  const fetchClassNamesForSessions = async () => {
+    for (const s of sessions.value) {
+      if (s.className) continue  // 已有班级则跳过
+      try {
+        const res: any = await getSignInDetail(s.id, { pageSize: 100 })
+        const data = res?.data || res
+        const detailList = data?.list || []
+        // 从明细记录中找到第一个有 className 的
+        const recordWithClass = detailList.find((r: any) => r.className)
+        if (recordWithClass) {
+          s.className = extractClassName(recordWithClass.className)
+          saveSessions()
+        }
+      } catch { /* ignore */ }
+      await new Promise(r => setTimeout(r, 300))
     }
   }
 

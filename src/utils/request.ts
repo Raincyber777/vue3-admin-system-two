@@ -60,7 +60,7 @@ request.interceptors.response.use(
     }
     if (res.code !== 200 && res.code !== 0 && res.code !== undefined) {
       // 不弹窗，让调用方自行决定是否提示
-      return Promise.reject(new Error(res.message || '请求失败'))
+      return Promise.reject(new Error(res.msg || res.message || '请求失败'))
     }
     return res
   },
@@ -72,10 +72,14 @@ request.interceptors.response.use(
         const url = error.config?.url || ''
         const isAuthAction = url.includes('/auth/login') || url.includes('/auth/update_pwd')
         if (!isAuthAction) {
-          ElMessage.error('登录已过期，请重新登录')
-          localStorage.removeItem('token')
-          localStorage.removeItem('userInfo')
-          window.location.href = '/login'
+          // 检查 Token 是否已被清除（正在退出登录），如果是则不弹窗
+          const token = localStorage.getItem('token')
+          if (token) {
+            ElMessage.error('登录已过期，请重新登录')
+            localStorage.removeItem('token')
+            localStorage.removeItem('userInfo')
+            window.location.href = '/login'
+          }
         }
       }
     } else if (error.code === 'ECONNABORTED') {

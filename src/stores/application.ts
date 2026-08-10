@@ -11,6 +11,12 @@ const mapStatus = (status: number): 'pending' | 'approved' | 'rejected' => {
   return 'pending'
 }
 
+/** 用本地时区手动格式化时间为 YYYY-MM-DD HH:mm:ss，避免 toLocaleString 在不同环境下出现时区偏差 */
+const formatLocalTime = (date: Date = new Date()): string => {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
 /** 部门数字 → 名称 */
 const departmentLabel = (val: any): string => {
   if (!val && val !== 0) return ''
@@ -165,7 +171,7 @@ export const useApplicationStore = defineStore('application', () => {
     const item = applicants.value.find(a => a.id === signId)
     if (item) {
       item.status = 'approved'
-      item.review_time = new Date().toLocaleString('zh-CN')
+      item.review_time = formatLocalTime()
     }
     return true
   }
@@ -176,7 +182,7 @@ export const useApplicationStore = defineStore('application', () => {
     const item = applicants.value.find(a => a.id === signId)
     if (item) {
       item.status = 'rejected'
-      item.review_time = new Date().toLocaleString('zh-CN')
+      item.review_time = formatLocalTime()
     }
     return true
   }

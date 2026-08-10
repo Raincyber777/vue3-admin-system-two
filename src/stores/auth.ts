@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login as loginApi, logout as logoutApi, getUserProfile, changePassword as changePasswordApi, type UserInfo, type LoginParams, type ChangePasswordParams } from '../api/auth'
+import { login as loginApi, getUserProfile, changePassword as changePasswordApi, type UserInfo, type LoginParams, type ChangePasswordParams } from '../api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string>(localStorage.getItem('token') || '')
@@ -79,15 +79,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   const login = async (params: LoginParams) => {
     const res = await loginApi(params)
-    // 拦截器已解包 response.data，此处 res = { code, msg, data: { accessToken, ... } }
     const payload = (res as any).data
-    console.log('🔍 [登录] 完整 res:', JSON.stringify(res))
-    console.log('🔍 [登录] payload:', JSON.stringify(payload))
-    console.log('🔍 [登录] payload keys:', payload ? Object.keys(payload) : 'null')
     if (payload?.accessToken) {
       setToken(payload.accessToken, payload.refreshToken || payload.refresh_token)
       const info = payload.adminInfo || payload.user || payload.userInfo || payload.user_info || payload
-      console.log('🔍 [登录] info:', JSON.stringify(info))
       if (info) {
         const newLabId = info.labId || info.lab_id
         const oldLabInfo = userInfo.value
@@ -105,14 +100,8 @@ export const useAuthStore = defineStore('auth', () => {
     return { success: false, message: (res as any).message || '登录失败' }
   }
 
-  const logout = async () => {
-    try {
-      await logoutApi()
-    } catch {
-      // 忽略错误
-    }
+  const logout = () => {
     clearAuth()
-    clearLabDataCache()  // 登出时也清除实验室数据缓存
   }
 
   const fetchUserInfo = async () => {
