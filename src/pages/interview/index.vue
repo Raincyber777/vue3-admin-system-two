@@ -439,10 +439,13 @@ const openEditDialog = async (hw: Homework) => {
   editingId.value = hw.id
   form.title = hw.title
   form.courseId = hw.courseId ?? ''
-  form.className = hw.className || ''
   form.publishDate = hw.publishDate
   form.deadline = hw.deadline
-  form.questions = hw.questions.map(q => makeQForm(q))
+  // 从 API 获取完整题目数据和班级
+  const detail = await store.fetchHomeworkDetail(hw.id)
+  form.className = detail?.className || hw.className || ''
+  const questions = detail?.questions || hw.questions || []
+  form.questions = questions.map(q => makeQForm(q))
   await loadCourses()
   dialogVisible.value = true
 }

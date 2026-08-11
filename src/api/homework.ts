@@ -9,6 +9,14 @@ export interface CreateHomeworkParams {
   courseId: number | string
   homeworkTitle: string
   homeworkContent: string
+  questions?: Array<{
+    id: string
+    type: string
+    score: number
+    title: string
+    answer: string | boolean
+    options?: string[]
+  }>
   deadline?: string
   /** 班级（一班/二班/三班） */
   groupName?: string
@@ -70,6 +78,35 @@ export interface HomeworkListRes {
  */
 export const getHomeworkList = async (params?: HomeworkListParams): Promise<HomeworkListRes> => {
   return request.get('/v1/admin/homework/list', { params })
+}
+
+/** 作业详情（后端实际返回字段） */
+export interface HomeworkDetail {
+  homeworkId: number
+  courseId: number
+  courseName: string
+  homeworkTitle: string
+  homeworkContent: string
+  questions: Array<{
+    id: string
+    type: string
+    score: number
+    title: string
+    answer: string | boolean
+    options?: string[]
+  }>
+  groupName: string
+  deadline: string
+  submitCount: number
+  createTime: string
+}
+
+/**
+ * 获取单个作业详情
+ * GET /v1/admin/homework/detail/{homeworkId}
+ */
+export const getHomeworkDetail = async (homeworkId: number | string): Promise<HomeworkDetail> => {
+  return request.get(`/v1/admin/homework/detail/${homeworkId}`)
 }
 
 /** 提交列表查询参数 */

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { createHomework as createHomeworkApi, updateHomeworkApi, deleteHomeworkApi, getHomeworkList, getSubmitList, getSubmitDetail, submitScore, deleteSubmit, batchDeleteSubmit } from '@/api/homework'
+import { createHomework as createHomeworkApi, updateHomeworkApi, deleteHomeworkApi, getHomeworkList, getHomeworkDetail, getSubmitList, getSubmitDetail, submitScore, deleteSubmit, batchDeleteSubmit } from '@/api/homework'
 import type { Homework, Question } from '@/types/homework'
 import { pick, readStorage, writeStorage, createDeletedIdsManager, parseListResponse, now, generateTempId } from '@/utils/common'
 
@@ -92,6 +92,7 @@ export const useHomeworkStore = defineStore('homework', () => {
       const apiParams = {
         homeworkTitle: data.title,
         homeworkContent: data.questions.map(q => q.title).join('；') || data.title,
+        questions: data.questions.map(q => ({ id: String(q.id), type: q.type, score: q.score, title: q.title, answer: q.answer, options: q.options })),
         deadline: data.deadline || '',
         courseId: numericCourseId,
         groupName: className && className !== '全部班级' ? className : undefined,
@@ -127,9 +128,11 @@ export const useHomeworkStore = defineStore('homework', () => {
     try {
       const numericCourseId = Number(courseId) || 0
       const className = (data as any).className || ''
+      const questions = data.questions
       await updateHomeworkApi(id, {
         homeworkTitle: data.title || homeworks.value[localIdx]?.title || '',
-        homeworkContent: data.questions ? JSON.stringify(data.questions) : undefined,
+        homeworkContent: questions ? questions.map(q => q.title).join('；') : undefined,
+        questions: questions ? questions.map(q => ({ id: String(q.id), type: q.type, score: q.score, title: q.title, answer: q.answer, options: q.options })) : undefined,
         deadline: data.deadline || homeworks.value[localIdx]?.deadline,
         courseId: numericCourseId,
         groupName: className && className !== '全部班级' ? className : undefined,
@@ -158,6 +161,43 @@ export const useHomeworkStore = defineStore('homework', () => {
   const endHomework = (id: number) => {
     const hw = homeworks.value.find(h => h.id === id)
     if (hw) { hw.status = 'ended'; saveHomeworks() }
+  }
+
+  /** 获取单个作业详情（含完整题目列表） */
+  const fetchHomeworkDetail = async (homeworkId: number | string): Promise<Homework | null> => {
+    try {
+      const res: any = await getHomeworkDetail(homeworkId)
+      const d = res.data || res
+      if (d) {
+        const questions: Question[] = (d.questions || []).map((q: any, i: number) => ({
+          id: Number(q.id?.replace(/\D/g, '')) || i + 1,
+          order: i + 1,
+          type: q.type as Question['type'],
+          title: q.title || '',
+          score: q.score || 0,
+          options: q.options || undefined,
+          answer: q.answer === false ? '错误' : q.answer === true ? '正确' : String(q.answer || ''),
+        }))
+        return {
+          id: d.homeworkId,
+          title: d.homeworkTitle || '',
+          department: 'software',
+          publishDate: d.createTime || '',
+          deadline: d.deadline || '',
+          questions,
+          courseId: d.courseId || 0,
+          courseName: d.courseName || '',
+          className: d.groupName || '全部班级',
+          totalScore: questions.reduce((s, q) => s + q.score, 0),
+          status: 'published' as const,
+          createdAt: d.createTime || '',
+          createdBy: '管理员',
+        }
+      }
+    } catch (e) {
+      console.warn('获取作业详情失败:', e)
+    }
+    return null
   }
 
   const newQuestionId = (hwId: number) => {
@@ -352,6 +392,7 @@ export const useHomeworkStore = defineStore('homework', () => {
     fetchHomeworks,
     createHomework,
     updateHomework,
+    fetchHomeworkDetail,
     deleteHomework,
     publishHomework,
     endHomework,
